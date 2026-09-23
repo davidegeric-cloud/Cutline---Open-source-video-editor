@@ -1,0 +1,311 @@
+import type {
+  AnimationName,
+  EffectName,
+  TextClip,
+  TransitionName,
+} from "./model";
+export const FILTERS = [
+  { name: "Original", css: "", color: "#6a839a" },
+  { name: "Fresh", css: "saturate(1.25) contrast(1.04)", color: "#5bbaa5" },
+  {
+    name: "Cinema",
+    css: "sepia(.23) saturate(.8) contrast(1.15)",
+    color: "#af8c6e",
+  },
+  { name: "Mono", css: "grayscale(1) contrast(1.18)", color: "#a4a4ad" },
+  { name: "Warm", css: "sepia(.28) saturate(1.2)", color: "#e6ae6f" },
+  {
+    name: "Dream",
+    css: "saturate(.75) contrast(.88) brightness(1.12)",
+    color: "#b2a1e9",
+  },
+  {
+    name: "Arctic",
+    css: "sepia(.18) hue-rotate(155deg) saturate(.85)",
+    color: "#79b7d9",
+  },
+  {
+    name: "Vintage",
+    css: "sepia(.55) contrast(.85) saturate(.8)",
+    color: "#b8a079",
+  },
+  {
+    name: "Noir",
+    css: "grayscale(1) contrast(1.65) brightness(.88)",
+    color: "#797c89",
+  },
+  {
+    name: "Teal & orange",
+    css: "sepia(.35) hue-rotate(335deg) saturate(1.4) contrast(1.08)",
+    color: "#67b4bb",
+  },
+  {
+    name: "Faded",
+    css: "contrast(.72) brightness(1.12) saturate(.68)",
+    color: "#c1b6b4",
+  },
+  { name: "Vivid", css: "saturate(1.65) contrast(1.12)", color: "#d18cca" },
+];
+export const EFFECTS: {
+  name: EffectName;
+  description: string;
+  icon: string;
+  color: string;
+}[] = [
+  {
+    name: "Vignette",
+    description: "Soft, darker edges",
+    icon: "◉",
+    color: "#93aaa9",
+  },
+  {
+    name: "Grain",
+    description: "Moving film texture",
+    icon: "⠿",
+    color: "#ac998a",
+  },
+  {
+    name: "Glow",
+    description: "Soft luminous bloom",
+    icon: "✦",
+    color: "#b8a6ee",
+  },
+  { name: "Blur", description: "Defocused image", icon: "◌", color: "#82a4d6" },
+  {
+    name: "Pixelate",
+    description: "Retro pixel blocks",
+    icon: "▦",
+    color: "#83ba9d",
+  },
+  {
+    name: "Chromatic",
+    description: "Split color channels",
+    icon: "≋",
+    color: "#d680b5",
+  },
+  {
+    name: "Scanlines",
+    description: "Analog display lines",
+    icon: "☰",
+    color: "#88bca5",
+  },
+  {
+    name: "Duotone",
+    description: "Two-color treatment",
+    icon: "◐",
+    color: "#b789d4",
+  },
+  {
+    name: "Shake",
+    description: "Handheld camera motion",
+    icon: "↯",
+    color: "#d1af79",
+  },
+  { name: "Pulse", description: "Rhythmic zoom", icon: "◎", color: "#c894bd" },
+  {
+    name: "Letterbox",
+    description: "Cinematic frame",
+    icon: "▬",
+    color: "#8c9ebf",
+  },
+  {
+    name: "Prism",
+    description: "Color light wash",
+    icon: "◇",
+    color: "#95a8e0",
+  },
+];
+export const TRANSITIONS: { name: TransitionName; icon: string }[] = [
+  ["None", "—"],
+  ["Dissolve", "◐"],
+  ["Fade black", "●"],
+  ["Fade white", "○"],
+  ["Wipe left", "◧"],
+  ["Wipe right", "◨"],
+  ["Wipe up", "⬒"],
+  ["Slide left", "←"],
+  ["Slide right", "→"],
+  ["Zoom", "◎"],
+  ["Blur", "◌"],
+  ["Circle", "◉"],
+  ["Glitch", "≋"],
+].map(([name, icon]) => ({ name: name as TransitionName, icon }));
+export const ANIMATIONS: AnimationName[] = [
+  "None",
+  "Fade",
+  "Rise",
+  "Drop",
+  "Slide",
+  "Slide right",
+  "Pop",
+  "Zoom",
+  "Shrink",
+  "Spin",
+  "Flip",
+  "Bounce",
+  "Elastic",
+  "Blur",
+  "Wipe left",
+  "Wipe right",
+  "Wipe up",
+  "Wipe down",
+  "Typewriter",
+  "Drift",
+  "Custom",
+];
+export const FONTS = [
+  "Manrope Variable",
+  "Source Code Pro Variable",
+  "Arial",
+  "Georgia",
+  "Impact",
+  "Trebuchet MS",
+];
+export const TEXT_PRESETS: {
+  name: string;
+  sample: string;
+  style: Partial<TextClip>;
+}[] = [
+  {
+    name: "Clean title",
+    sample: "New Text",
+    style: { fontSize: 86, fontWeight: 800 },
+  },
+  {
+    name: "Editorial",
+    sample: "New Text",
+    style: {
+      fontFamily: "Georgia",
+      fontSize: 80,
+      italic: true,
+      fontWeight: 400,
+      color: "#f2e7d2",
+    },
+  },
+  {
+    name: "Bold outline",
+    sample: "New Text",
+    style: {
+      fontSize: 98,
+      fontWeight: 800,
+      strokeWidth: 5,
+      strokeColor: "#131824",
+      shadowBlur: 0,
+    },
+  },
+  {
+    name: "Neon",
+    sample: "New Text",
+    style: {
+      fontSize: 80,
+      color: "#92ffdb",
+      shadowColor: "#35ffb6",
+      shadowBlur: 30,
+      shadowOffset: 0,
+      letterSpacing: 4,
+    },
+  },
+  {
+    name: "Caption pill",
+    sample: "New Text",
+    style: {
+      fontSize: 46,
+      background: true,
+      backgroundColor: "#151820",
+      backgroundOpacity: 0.9,
+      radius: 26,
+      padding: 18,
+      y: 0.84,
+      kind: "caption",
+    },
+  },
+  {
+    name: "Highlight",
+    sample: "New Text",
+    style: {
+      fontSize: 64,
+      color: "#172019",
+      background: true,
+      backgroundColor: "#c0ff82",
+      backgroundOpacity: 1,
+      radius: 3,
+      padding: 20,
+      shadowBlur: 0,
+    },
+  },
+  {
+    name: "Lower third",
+    sample: "New Text",
+    style: {
+      fontSize: 50,
+      align: "left",
+      x: 0.08,
+      y: 0.78,
+      background: true,
+      padding: 24,
+      radius: 0,
+      lineHeight: 1.45,
+    },
+  },
+  {
+    name: "Typewriter",
+    sample: "New Text",
+    style: {
+      fontFamily: "Source Code Pro Variable",
+      fontSize: 58,
+      fontWeight: 500,
+      animation: "Typewriter",
+      animationDuration: 1.4,
+    },
+  },
+  {
+    name: "Pop in",
+    sample: "New Text",
+    style: {
+      fontFamily: "Impact",
+      fontSize: 104,
+      color: "#ffd16d",
+      strokeWidth: 3,
+      animation: "Pop",
+      rotation: -5,
+    },
+  },
+  {
+    name: "Minimal",
+    sample: "New Text",
+    style: {
+      fontSize: 42,
+      fontWeight: 400,
+      letterSpacing: 6,
+      shadowBlur: 0,
+      animation: "Fade",
+    },
+  },
+  {
+    name: "Glass",
+    sample: "New Text",
+    style: {
+      fontSize: 60,
+      background: true,
+      backgroundColor: "#788aa0",
+      backgroundOpacity: 0.38,
+      radius: 18,
+      padding: 26,
+      letterSpacing: 3,
+    },
+  },
+  {
+    name: "Retro",
+    sample: "New Text",
+    style: {
+      fontFamily: "Impact",
+      fontSize: 110,
+      color: "#ffc792",
+      strokeColor: "#72385b",
+      strokeWidth: 7,
+      shadowColor: "#72385b",
+      shadowOffset: 8,
+      shadowBlur: 0,
+    },
+  },
+];

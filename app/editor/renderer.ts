@@ -1,0 +1,639 @@
+import {
+  clamp,
+  animatedItem,
+  clipDuration,
+  endOf,
+  interpolatedTransform,
+  trackKey,
+  transitionWindow,
+  type Asset,
+  type Clip,
+  type Project,
+  type TextClip,
+} from "./model";
+import { FILTERS } from "./presets";
+import { textMotion } from "./textAnimation";
+
+export type MediaSources = Map<string, HTMLVideoElement | HTMLImageElement>;
+export type Bounds = {
+  id: string;
+  kind: "clip" | "text";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+};
+const rad = (degrees: number) => (degrees * Math.PI) / 180;
+const surface = () => document.createElement("canvas");
+const sourceSize = (source: HTMLVideoElement | HTMLImageElement | undefined, asset: Asset | undefined) => ({
+  width: source instanceof HTMLVideoElement ? source.videoWidth : source?.naturalWidth || asset?.width || 0,
+  height: source instanceof HTMLVideoElement ? source.videoHeight : source?.naturalHeight || asset?.height || 0,
+});
+export class Renderer {
+  private layer = surface();
+  private transitionLayer = surface();
+  private temp = surface();
+  private pixel = surface();
+  bounds: Bounds[] = [];
+
+  draw(
+    canvas: HTMLCanvasElement,
+    project: Project,
+    time: number,
+    sources: MediaSources,
+  ) {
+    const ctx = canvas.getContext("2d")!;
+    const w = canvas.width,
+      h = canvas.height;
+    this.bounds = [];
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = project.background;
+    ctx.fillRect(0, 0, w, h);
+    if (this.layer.width !== w || this.layer.height !== h) {
+      this.layer.width = this.temp.width = w;
+      this.layer.height = this.temp.height = h;
+      this.transitionLayer.width = w;
+      this.transitionLayer.height = h;
+    }
+    const visible = project.clips.filter(
+      (c) => c.kind === "video" && !project.hiddenTracks.includes(trackKey(c)),
+    );
+    const joins = visible.flatMap((incoming) => {
+      const window = transitionWindow(project, incoming);
+      return window ? [{ incoming, window }] : [];
+    });
+    const activeVideos = [...new Set(visible.map((c) => c.track))].flatMap(
+      (track) => {
+        const joining = joins.filter(({ incoming, window }) => incoming.track === track && time >= window.start && time < window.end)
+          .sort((a, b) => a.incoming.start - b.incoming.start).at(-1);
+        if (joining) return [joining.incoming];
+        const active = visible
+          .filter(
+            (c) => c.track === track && time >= c.start && time < endOf(c),
+          )
+          .sort((a, b) => a.start - b.start)
+          .at(-1);
+        return active ? [active] : [];
+      },
+    );
+    // One compositing order for preview, hit testing, and exported frames.
+    // Clip type never takes precedence over its layer.
+    const visualItems = [
+      ...activeVideos,
+      ...project.texts.filter(
+        (t) =>
+          time >= t.start &&
+          time < endOf(t) &&
+          !project.hiddenTracks.includes(trackKey(t)),
+      ),
+    ].sort((a, b) => a.track - b.track || a.start - b.start);
+    for (const active of visualItems) {
+      if (!("assetId" in active)) {
+        const textContext = this.layer.getContext("2d")!;
+        textContext.clearRect(0, 0, w, h);
+        const animated = animatedItem(active, time);
+        this.drawText(textContext, animated, time, w, h);
+        this.applyEffects(animated.effects ?? [], time, w, h, this.bounds.at(-1));
+        ctx.drawImage(this.layer, 0, 0);
+        continue;
+      }
+      const join = joins.find(({ incoming, window }) => incoming.id === active.id && time >= window.start && time < window.end);
+      if (join) {
+        const pair = this.transitionLayer.getContext("2d")!;
+        const progress = clamp((time - join.window.start) / join.window.duration, 0, 1);
+        pair.clearRect(0, 0, w, h);
+        if (active.transition === "Fade black" || active.transition === "Fade white") {
+          pair.fillStyle = active.transition === "Fade black" ? "#000" : "#fff";
+          pair.fillRect(0, 0, w, h);
+        }
+        for (const [clip, side] of [[join.window.previous, "out"], [active, "in"]] as const) {
+          this.drawClip(project.assets.find((a) => a.id === clip.assetId), clip, time, sources.get(clip.id), w, h, true);
+          pair.save();
+          this.transition(pair, active.transition, progress, side, w, h);
+          pair.drawImage(this.layer, 0, 0);
+          pair.restore();
+        }
+        ctx.drawImage(this.transitionLayer, 0, 0);
+      } else {
+        this.drawClip(project.assets.find((a) => a.id === active.assetId), active, time, sources.get(active.id), w, h);
+        ctx.drawImage(this.layer, 0, 0);
+      }
+      const hitClip = join && time < active.start ? join.window.previous : active;
+      const tr = interpolatedTransform(hitClip, time - hitClip.start);
+      const motion = this.clipMotion(hitClip, time, !!join);
+      const asset = project.assets.find((a) => a.id === hitClip.assetId);
+      const size = sourceSize(sources.get(hitClip.id), asset);
+      const fittedScale = size.width && size.height ? Math.min(w / size.width, h / size.height) : 0;
+      const contentWidth = hitClip.fit === "contain" && fittedScale ? size.width * fittedScale : w;
+      const contentHeight = hitClip.fit === "contain" && fittedScale ? size.height * fittedScale : h;
+      this.bounds.push({
+        id: hitClip.id,
+        kind: "clip",
+        x: w / 2 + (tr.x + motion.x) * w,
+        y: h / 2 + (tr.y + motion.y) * h,
+        width: contentWidth * tr.scale * motion.scaleX,
+        height: contentHeight * tr.scale * motion.scaleY,
+        rotation: tr.rotation + motion.rotation,
+      });
+    }
+    return this.bounds;
+  }
+
+  private transition(
+    ctx: CanvasRenderingContext2D,
+    name: string,
+    p: number,
+    side: "out" | "in",
+    w: number,
+    h: number,
+  ) {
+    const ease = p * p * (3 - 2 * p);
+    switch (name) {
+      case "Dissolve":
+        ctx.globalAlpha = side === "out" ? 1 - ease : ease;
+        ctx.globalCompositeOperation = "lighter";
+        break;
+      case "Fade black":
+      case "Fade white":
+        ctx.globalAlpha = side === "out" ? Math.max(0, 1 - p * 2) : Math.max(0, p * 2 - 1);
+        break;
+      case "Wipe left":
+        ctx.beginPath();
+        ctx.rect(side === "in" ? w * (1 - ease) : 0, 0, w * (side === "in" ? ease : 1 - ease), h);
+        ctx.clip();
+        break;
+      case "Wipe right":
+        ctx.beginPath();
+        ctx.rect(side === "in" ? 0 : w * ease, 0, w * (side === "in" ? ease : 1 - ease), h);
+        ctx.clip();
+        break;
+      case "Wipe up":
+        ctx.beginPath();
+        ctx.rect(0, side === "in" ? h * (1 - ease) : 0, w, h * (side === "in" ? ease : 1 - ease));
+        ctx.clip();
+        break;
+      case "Slide left":
+        ctx.translate(side === "out" ? -ease * w : (1 - ease) * w, 0);
+        break;
+      case "Slide right":
+        ctx.translate(side === "out" ? ease * w : -(1 - ease) * w, 0);
+        break;
+      case "Zoom": {
+        const s = side === "out" ? 1 + ease * 0.18 : 0.65 + ease * 0.35;
+        ctx.globalAlpha = side === "out" ? 1 - ease : ease;
+        ctx.globalCompositeOperation = "lighter";
+        ctx.translate(w / 2, h / 2);
+        ctx.scale(s, s);
+        ctx.translate(-w / 2, -h / 2);
+        break;
+      }
+      case "Blur":
+        ctx.globalAlpha = side === "out" ? 1 - ease : ease;
+        ctx.globalCompositeOperation = "lighter";
+        ctx.filter = "blur(" + ((side === "out" ? p : 1 - p) * w) / 70 + "px)";
+        break;
+      case "Circle":
+        ctx.beginPath();
+        if (side === "out") ctx.rect(0, 0, w, h);
+        ctx.arc(w / 2, h / 2, (Math.hypot(w, h) / 2) * ease, 0, Math.PI * 2);
+        ctx.clip(side === "out" ? "evenodd" : "nonzero");
+        break;
+      case "Glitch":
+        ctx.globalAlpha = side === "out" ? 1 - ease : ease;
+        ctx.globalCompositeOperation = "lighter";
+        ctx.translate(Math.sin(p * 90) * w * 0.04 * (side === "out" ? -p : 1 - p), 0);
+        ctx.filter = "hue-rotate(" + Math.sin(p * 30) * 90 * (side === "out" ? p : 1 - p) + "deg)";
+        break;
+    }
+  }
+
+  private clipMotion(c: Clip, time: number, supportFrame: boolean) {
+    if (supportFrame && (time < c.start || time >= endOf(c))) {
+      const still = { ...c, animation: "None" as const, exitAnimation: "None" as const, animationStack: [], exitAnimationStack: [] };
+      return textMotion(still, clamp(time, c.start, endOf(c) - 0.0001), false);
+    }
+    return textMotion(c, time, false);
+  }
+
+  private drawClip(
+    asset: Asset | undefined,
+    c: Clip,
+    time: number,
+    source: HTMLVideoElement | HTMLImageElement | undefined,
+    w: number,
+    h: number,
+    supportFrame = false,
+  ) {
+    c = animatedItem(c, time);
+    const ctx = this.layer.getContext("2d")!;
+    ctx.clearRect(0, 0, w, h);
+    if (!asset) return;
+    const tr = interpolatedTransform(c, time - c.start);
+    const motion = this.clipMotion(c, time, supportFrame);
+    const amount = (name: string) =>
+      (c.effects.find((e) => e.name === name)?.amount ?? 0) / 100;
+    ctx.save();
+    const shake = amount("Shake"),
+      pulse = amount("Pulse");
+    ctx.translate(
+      w / 2 + (tr.x + motion.x) * w + Math.sin(time * 53) * w * 0.016 * shake,
+      h / 2 + (tr.y + motion.y) * h + Math.cos(time * 47) * h * 0.018 * shake,
+    );
+    ctx.rotate(rad(tr.rotation + motion.rotation));
+    const zoom =
+      tr.scale * (1 + pulse * 0.05 * (1 + Math.sin(time * Math.PI * 3)));
+    ctx.scale(zoom * motion.scaleX * (c.flipX ? -1 : 1), zoom * motion.scaleY * (c.flipY ? -1 : 1));
+    ctx.translate(-w / 2, -h / 2);
+    // Keep the visible crop inside the same frame used by selection handles.
+    ctx.beginPath(); ctx.rect(0, 0, w, h); ctx.clip();
+    ctx.globalAlpha = clamp(tr.opacity * motion.opacity, 0, 1);
+    ctx.filter = [
+      FILTERS.find((f) => f.name === c.filter)?.css,
+      "brightness(" + c.brightness + "%)",
+      "contrast(" + c.contrast + "%)",
+      "saturate(" + c.saturation + "%)",
+      amount("Blur") ? "blur(" + (amount("Blur") * w) / 55 + "px)" : "",
+      motion.blur ? "blur(" + motion.blur * w + "px)" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    for (const { direction, amount: reveal } of motion.reveals) {
+      let rx = 0, ry = 0, cw = w, ch = h;
+      if (direction === "Wipe left") { cw *= reveal; rx += w - cw; }
+      if (direction === "Wipe right") cw *= reveal;
+      if (direction === "Wipe up") { ch *= reveal; ry += h - ch; }
+      if (direction === "Wipe down") ch *= reveal;
+      ctx.beginPath(); ctx.rect(rx, ry, cw, ch); ctx.clip();
+    }
+    if (motion.characters < 1) {
+      ctx.beginPath(); ctx.rect(0, 0, w * motion.characters, h); ctx.clip();
+    }
+    if (asset.kind === "demo")
+      drawDemo(ctx, asset, w, h, (time - c.start) / clipDuration(c));
+    else if (source) {
+      const { width: sw, height: sh } = sourceSize(source, asset);
+      if (sw && sh) {
+        const s =
+          c.fit === "cover"
+            ? Math.max(w / sw, h / sh)
+            : Math.min(w / sw, h / sh);
+        ctx.drawImage(
+          source,
+          (w - sw * s) / 2,
+          (h - sh * s) / 2,
+          sw * s,
+          sh * s,
+        );
+      }
+    }
+    ctx.restore();
+    if (c.temperature) {
+      ctx.save();
+      ctx.globalCompositeOperation = "source-atop";
+      ctx.fillStyle = c.temperature > 0 ? "#ff9900" : "#3388ff";
+      ctx.globalAlpha = Math.abs(c.temperature) / 500;
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+    }
+    this.applyEffects(c.effects, time, w, h);
+  }
+
+  private applyEffects(
+    effects: Clip["effects"],
+    time: number,
+    w: number,
+    h: number,
+    textBounds?: Bounds,
+  ) {
+    const ctx = this.layer.getContext("2d")!;
+    const region = textBounds
+      ? {
+          x: textBounds.x - textBounds.width / 2,
+          y: textBounds.y - textBounds.height / 2,
+          width: textBounds.width,
+          height: textBounds.height,
+        }
+      : { x: 0, y: 0, width: w, height: h };
+    for (const e of effects) {
+      const a = e.amount / 100;
+      if (a <= 0) continue;
+      ctx.save();
+      ctx.globalCompositeOperation = "source-atop";
+      switch (e.name) {
+        case "Vignette": {
+          const g = ctx.createRadialGradient(
+            region.x + region.width / 2,
+            region.y + region.height / 2,
+            Math.min(region.width, region.height) * 0.15,
+            region.x + region.width / 2,
+            region.y + region.height / 2,
+            Math.hypot(region.width, region.height) / 2,
+          );
+          g.addColorStop(0, "transparent");
+          g.addColorStop(1, "rgba(0,0,0," + a + ")");
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, w, h);
+          break;
+        }
+        case "Grain": {
+          let seed = Math.floor(time * 24) + 919;
+          const rand = () => {
+            seed = (Math.imul(seed, 1664525) + 1013904223) | 0;
+            return (seed >>> 0) / 4294967296;
+          };
+          const size = Math.max(1, w / 500);
+          ctx.globalAlpha = a * 0.2;
+          for (let i = 0; i < 6000; i++) {
+            ctx.fillStyle = rand() > 0.5 ? "white" : "black";
+            ctx.fillRect(
+              region.x + rand() * region.width,
+              region.y + rand() * region.height,
+              size,
+              size,
+            );
+          }
+          break;
+        }
+        case "Glow":
+          this.copy();
+          ctx.globalCompositeOperation = "screen";
+          ctx.globalAlpha = a * 0.55;
+          ctx.filter = "blur(" + w / 65 + "px) brightness(1.25)";
+          ctx.drawImage(this.temp, 0, 0);
+          break;
+        case "Pixelate": {
+          const pw = Math.max(12, Math.round(w / (2 + a * 45)));
+          this.pixel.width = pw;
+          this.pixel.height = Math.max(1, Math.round((pw * h) / w));
+          this.pixel
+            .getContext("2d")!
+            .drawImage(this.layer, 0, 0, this.pixel.width, this.pixel.height);
+          ctx.imageSmoothingEnabled = false;
+          ctx.globalCompositeOperation = "copy";
+          ctx.drawImage(this.pixel, 0, 0, w, h);
+          break;
+        }
+        case "Chromatic":
+          this.copy();
+          ctx.globalCompositeOperation = "screen";
+          ctx.globalAlpha = a * 0.36;
+          ctx.filter = "sepia(1) saturate(8) hue-rotate(280deg)";
+          ctx.drawImage(this.temp, w * a * 0.016, 0);
+          ctx.filter = "sepia(1) saturate(8) hue-rotate(130deg)";
+          ctx.drawImage(this.temp, -w * a * 0.016, 0);
+          break;
+        case "Scanlines":
+          ctx.fillStyle = "#030713";
+          ctx.globalAlpha = a * 0.5;
+          for (let y = 0; y < h; y += Math.max(4, h / 180))
+            ctx.fillRect(0, y, w, Math.max(1, h / 500));
+          break;
+        case "Duotone": {
+          const g = ctx.createLinearGradient(0, h, w, 0);
+          g.addColorStop(0, "#46308d");
+          g.addColorStop(1, "#ffbd88");
+          ctx.globalCompositeOperation = textBounds ? "source-atop" : "color";
+          ctx.globalAlpha = a;
+          ctx.fillStyle = g;
+          if (textBounds) this.maskedFill(ctx, g, w, h);
+          else ctx.fillRect(0, 0, w, h);
+          break;
+        }
+        case "Letterbox":
+          ctx.fillStyle = "#000";
+          ctx.fillRect(
+            region.x,
+            region.y,
+            region.width,
+            region.height * (textBounds ? 0.3 : 0.13) * a,
+          );
+          ctx.fillRect(
+            region.x,
+            region.y + region.height * (1 - (textBounds ? 0.3 : 0.13) * a),
+            region.width,
+            region.height * (textBounds ? 0.3 : 0.13) * a,
+          );
+          break;
+        case "Prism": {
+          const g = ctx.createLinearGradient(0, 0, w, h);
+          g.addColorStop(0, "#a653ef");
+          g.addColorStop(0.5, "#4ad4e2");
+          g.addColorStop(1, "#ff9f70");
+          ctx.globalCompositeOperation = textBounds ? "source-atop" : "screen";
+          ctx.globalAlpha = a * 0.32 * (0.8 + 0.2 * Math.sin(time));
+          ctx.fillStyle = g;
+          if (textBounds) this.maskedFill(ctx, g, w, h);
+          else ctx.fillRect(0, 0, w, h);
+          break;
+        }
+      }
+      ctx.restore();
+    }
+  }
+
+  private maskedFill(
+    ctx: CanvasRenderingContext2D,
+    fill: CanvasGradient,
+    w: number,
+    h: number,
+  ) {
+    // Screen/color blends would otherwise paint a solid rectangle behind transparent text.
+    this.copy();
+    const mask = this.temp.getContext("2d")!;
+    mask.save();
+    mask.globalCompositeOperation = "source-in";
+    mask.fillStyle = fill;
+    mask.fillRect(0, 0, w, h);
+    mask.restore();
+    ctx.drawImage(this.temp, 0, 0);
+  }
+
+  private copy() {
+    const ctx = this.temp.getContext("2d")!;
+    ctx.clearRect(0, 0, this.temp.width, this.temp.height);
+    ctx.drawImage(this.layer, 0, 0);
+  }
+
+  private drawText(
+    ctx: CanvasRenderingContext2D,
+    t: TextClip,
+    time: number,
+    w: number,
+    h: number,
+  ) {
+    const unit = w / 1920;
+    const motion = textMotion(t, time);
+    const amount = (name: string) =>
+      ((t.effects ?? []).find((e) => e.name === name)?.amount ?? 0) / 100;
+    const x =
+      (t.x + motion.x) * w + Math.sin(time * 53) * w * 0.016 * amount("Shake");
+    const y =
+      (t.y + motion.y) * h + Math.cos(time * 47) * h * 0.018 * amount("Shake");
+    const pulse =
+      1 + amount("Pulse") * 0.05 * (1 + Math.sin(time * Math.PI * 3));
+    const sx = motion.scaleX * pulse,
+      sy = motion.scaleY * pulse;
+    const rotation = t.rotation + motion.rotation,
+      alpha = motion.opacity;
+    const chars = Array.from(t.text);
+    const text = chars
+      .slice(0, Math.ceil(chars.length * motion.characters))
+      .join("");
+    const size = t.fontSize * unit;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rad(rotation));
+    ctx.scale(sx, sy);
+    const blur = motion.blur * w + (amount("Blur") * w) / 55;
+    if (blur > 0) ctx.filter = `blur(${blur}px)`;
+    ctx.font =
+      (t.italic ? "italic " : "") +
+      t.fontWeight +
+      " " +
+      size +
+      'px "' +
+      t.fontFamily +
+      '"';
+    ctx.textAlign = t.align;
+    ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+    ctx.letterSpacing = t.letterSpacing * unit + "px";
+    const lines = text.split("\n"),
+      fullLines = t.text.split("\n");
+    const tw = Math.max(
+      size,
+      ...fullLines.map((line) => ctx.measureText(line).width),
+    );
+    const th = fullLines.length * size * t.lineHeight;
+    const left = t.align === "center" ? -tw / 2 : t.align === "right" ? -tw : 0;
+    for (const { direction, amount: reveal } of motion.reveals) {
+      const pad = t.padding * unit + t.strokeWidth * unit * 2;
+      const rw = tw + pad * 2,
+        rh = th + pad * 2;
+      let rx = left - pad,
+        ry = -th / 2 - pad,
+        cw = rw,
+        ch = rh;
+      if (direction === "Wipe left") {
+        cw *= reveal;
+        rx += rw - cw;
+      }
+      if (direction === "Wipe right") cw *= reveal;
+      if (direction === "Wipe up") {
+        ch *= reveal;
+        ry += rh - ch;
+      }
+      if (direction === "Wipe down") ch *= reveal;
+      ctx.beginPath();
+      ctx.rect(rx, ry, cw, ch);
+      ctx.clip();
+    }
+    if (t.background) {
+      const pad = t.padding * unit;
+      ctx.globalAlpha = alpha * t.backgroundOpacity;
+      ctx.fillStyle = t.backgroundColor;
+      ctx.beginPath();
+      ctx.roundRect(
+        left - pad,
+        -th / 2 - pad,
+        tw + pad * 2,
+        th + pad * 2,
+        Math.min(t.radius * unit, (th + pad * 2) / 2),
+      );
+      ctx.fill();
+    }
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = t.color;
+    ctx.strokeStyle = t.strokeColor;
+    ctx.lineWidth = t.strokeWidth * unit * 2;
+    ctx.shadowColor = t.shadowColor;
+    ctx.shadowBlur = t.shadowBlur * unit;
+    ctx.shadowOffsetX = ctx.shadowOffsetY = t.shadowOffset * unit;
+    lines.forEach((line, i) => {
+      const ly = (i - (fullLines.length - 1) / 2) * size * t.lineHeight;
+      if (t.strokeWidth) ctx.strokeText(line, 0, ly);
+      ctx.fillText(line, 0, ly);
+    });
+    ctx.restore();
+    const centerOffset = left + tw / 2;
+    this.bounds.push({
+      id: t.id,
+      kind: "text",
+      x: x + centerOffset * sx * Math.cos(rad(rotation)),
+      y: y + centerOffset * sx * Math.sin(rad(rotation)),
+      width: (tw + t.padding * unit * 2) * sx,
+      height: (th + t.padding * unit * 2) * sy,
+      rotation,
+    });
+  }
+}
+
+export function hitBounds(bounds: Bounds[], x: number, y: number) {
+  return [...bounds].reverse().find((b) => {
+    const dx = x - b.x,
+      dy = y - b.y,
+      a = -rad(b.rotation);
+    return (
+      Math.abs(dx * Math.cos(a) - dy * Math.sin(a)) <= b.width / 2 &&
+      Math.abs(dx * Math.sin(a) + dy * Math.cos(a)) <= b.height / 2
+    );
+  });
+}
+
+export function drawDemo(
+  ctx: CanvasRenderingContext2D,
+  asset: Asset,
+  w: number,
+  h: number,
+  progress: number,
+) {
+  const colors = (
+    {
+      aurora: ["#07182b", "#1b6a78", "#7af3c7"],
+      alpine: ["#1e2f56", "#8c83c4", "#ffd3a4"],
+      city: ["#08111f", "#3f3471", "#f5a75a"],
+    } as Record<string, string[]>
+  )[asset.theme] ?? ["#07182b", "#1b6a78", "#7af3c7"];
+  const gradient = ctx.createLinearGradient(0, 0, w, h);
+  gradient.addColorStop(0, colors[0]);
+  gradient.addColorStop(0.58, colors[1]);
+  gradient.addColorStop(1, colors[2]);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, w, h);
+  const glow = ctx.createRadialGradient(
+    w * (0.62 + Math.sin(progress * Math.PI) * 0.05),
+    h * 0.25,
+    1,
+    w * 0.62,
+    h * 0.25,
+    w * 0.48,
+  );
+  glow.addColorStop(0, "rgba(255,255,255,.34)");
+  glow.addColorStop(1, "transparent");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "#101822";
+  ctx.beginPath();
+  ctx.moveTo(0, h);
+  [
+    [0, 0.72],
+    [0.22, 0.48],
+    [0.39, 0.69],
+    [0.61, 0.39],
+    [0.82, 0.67],
+    [1, 0.5],
+    [1, 1],
+  ].forEach(([x, y]) => ctx.lineTo(w * x, h * y));
+  ctx.closePath();
+  ctx.fill();
+  if (asset.theme === "city")
+    for (let i = 0; i < 14; i++) {
+      const x = (i * w) / 14,
+        bh = h * (0.12 + ((i / 14) % 0.28));
+      ctx.fillStyle = "#090d18";
+      ctx.fillRect(x, h - bh, w / 17, bh);
+      ctx.fillStyle = "#ffbf63";
+      ctx.fillRect(x + w / 70, h - bh + h / 22, w / 130, h / 75);
+    }
+}
