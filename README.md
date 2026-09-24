@@ -2,6 +2,18 @@
 
 A free, device-local video editor for Windows and the web. No subscription, account in the PC app, or export watermark. The hosted development site uses its existing private Sites access policy. Source media is never uploaded by the editor.
 
+## Screenshots
+
+These are captures of the Windows editor with a synthetic sample project; no personal media is included.
+
+![Cutline editor overview with preview and layered timeline](docs/screenshots/editor-overview.png)
+
+![Cutline text styling and gradients](docs/screenshots/text-styles.png)
+
+![Cutline customizable text gradient controls](docs/screenshots/text-gradients.png)
+
+![Cutline transition controls](docs/screenshots/transitions.png)
+
 ## Editing
 
 - Absolute-position universal-layer timeline with frame-aligned moves, cross-track dragging, marquee multi-selection and group moving/deleting, speed-aware trimming, snapping, horizontal/vertical edge scrolling, and adjustable timeline height/zoom.
