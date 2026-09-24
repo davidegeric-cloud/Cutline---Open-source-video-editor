@@ -8,6 +8,9 @@ import {
   interpolatedTransform,
   makeClip,
   makeText,
+  makeComboAnimation,
+  normalizeComboAnimations,
+  COMBO_ANIMATIONS,
   normalizeGradientStops,
   migrateProject,
   newProject,
@@ -30,7 +33,7 @@ import {
 } from "../app/editor/model";
 import { historyReducer } from "../app/editor/useProject";
 import { ANIMATIONS, TEXT_PRESETS } from "../app/editor/presets";
-import { textAnimationTiming, textMotion } from "../app/editor/textAnimation";
+import { comboMotion, textAnimationTiming, textMotion } from "../app/editor/textAnimation";
 import { createCustomAnimationPreset, parseCustomAnimationPresets } from "../app/editor/customAnimationPresets";
 import { sampleProject } from "./fixtures";
 import { wordsToCaptions } from "../app/editor/whisper";
@@ -151,6 +154,35 @@ test("text alignment snapping defaults on and survives project migration", () =>
     [video],
   );
   assert.equal(disabled.texts[0].snapToGuides, false);
+});
+test("Combo animations loop through clips and stay editable across project backups", () => {
+  const text = makeText(0, {
+    duration: 8,
+    comboAnimations: COMBO_ANIMATIONS.map(makeComboAnimation),
+  });
+  const middle = textMotion(text, 3.7);
+  assert.ok(
+    [middle.x, middle.y, middle.scaleX - 1, middle.scaleY - 1, middle.rotation]
+      .some((value) => Math.abs(value) > 0.001),
+    "Combo stack should remain active in the middle of the clip",
+  );
+  assert.equal(textMotion(text, 0.2).opacity, 1);
+  assert.equal(textMotion(text, 7.9).opacity, 1);
+  const videoClip = makeClip(video, 0);
+  videoClip.comboAnimations = [makeComboAnimation("Wave")];
+  const videoMotion = comboMotion(videoClip, 0.37);
+  assert.ok(Math.abs(videoMotion.x) + Math.abs(videoMotion.y) + Math.abs(videoMotion.rotation) > 0.001);
+  const restored = migrateProject(
+    JSON.parse(JSON.stringify({ ...newProject(), texts: [text], clips: [videoClip] })),
+    [video],
+  );
+  assert.deepEqual(restored.texts[0].comboAnimations, text.comboAnimations);
+  assert.deepEqual(restored.clips[0].comboAnimations, videoClip.comboAnimations);
+  assert.deepEqual(normalizeComboAnimations([
+    { name: "Pulse", speed: 99, amount: -4 },
+    { name: "Pulse", speed: 1, amount: 20 },
+    { name: "Not a loop", speed: 1, amount: 50 },
+  ]), [{ name: "Pulse", speed: 4, amount: 0 }]);
 });
 test("entrance and exit presets have independent bounded timelines", () => {
   for (const name of ANIMATIONS.filter((n) => n !== "None")) {

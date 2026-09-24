@@ -2,6 +2,8 @@ import {
   newProject,
   makeClip,
   makeText,
+  makeComboAnimation,
+  COMBO_ANIMATIONS,
   dimensions,
   freezeFrame,
   type Asset,
@@ -280,6 +282,31 @@ export async function runEngineTests() {
       }
     },
   );
+  await check("Combo loops animate text and video throughout clips and match fresh export renders", () => {
+    const output = testCanvas();
+    output.width = canvas.width;
+    output.height = canvas.height;
+    const text = makeText(0, { text: "Combo", fontSize: 220, shadowBlur: 0, shadowOffset: 0, track: 2, duration: 5 });
+    const videoProject = { ...p, clips: [{ ...c, comboAnimations: [] }], texts: [] };
+    const textProject = { ...p, clips: [], texts: [text] };
+    renderer.draw(canvas, videoProject, 0.37, new Map());
+    const videoBaseline = hash(canvas);
+    renderer.draw(canvas, textProject, 0.37, new Map());
+    const textBaseline = hash(canvas);
+    for (const name of COMBO_ANIMATIONS) {
+      const layer = makeComboAnimation(name);
+      const animatedVideo = { ...videoProject, clips: [{ ...c, comboAnimations: [layer] }] };
+      const animatedText = { ...textProject, texts: [{ ...text, comboAnimations: [layer] }] };
+      renderer.draw(canvas, animatedVideo, 0.37, new Map());
+      assert(hash(canvas) !== videoBaseline, `Video ${name} did not animate`);
+      new Renderer().draw(output, animatedVideo, 0.37, new Map());
+      assert(hash(canvas) === hash(output), `Video ${name} preview differs from export`);
+      renderer.draw(canvas, animatedText, 0.37, new Map());
+      assert(hash(canvas) !== textBaseline, `Text ${name} did not animate`);
+      new Renderer().draw(output, animatedText, 0.37, new Map());
+      assert(hash(canvas) === hash(output), `Text ${name} preview differs from export`);
+    }
+  });
   await check("Tuned video Zoom and Drift animate preview/export pixels and hit bounds", () => {
     const base = { ...c, start: 0, sourceEnd: 4, animation: "Drift" as const, animationDuration: 1,
       animationSettings: { angle: 0, distance: 0.25 }, exitAnimation: "Zoom" as const,
@@ -928,6 +955,14 @@ export async function runEngineTests() {
         assert(button, `Missing ${label} button`); button!.click();
       };
       clickText(".inspector-tabs button", "Animation"); await wait(20);
+      clickText(".animation-phase button", "Combo"); await wait(20);
+      host.querySelector<HTMLButtonElement>('[aria-label="Combo Wave"]')!.click(); await wait(20);
+      host.querySelector<HTMLButtonElement>('[aria-label="Combo Pulse"]')!.click(); await wait(20);
+      assert(observed.texts[0].comboAnimations?.map((layer) => layer.name).join(",") === "Wave,Pulse", "Text combos did not stack on the selected layer");
+      selectItem({ kind: "clip", id: fixture.clips[0].id }); await wait(20);
+      host.querySelector<HTMLButtonElement>('[aria-label="Combo Zoom"]')!.click(); await wait(20);
+      assert(observed.clips[0].comboAnimations?.[0].name === "Zoom", "Combo animations did not apply to video clips");
+      selectItem({ kind: "text", id: fixture.texts[0].id }); await wait(20);
       clickText(".animation-phase button", "Exit"); await wait(20);
       host.querySelector<HTMLButtonElement>('[aria-label="Exit Zoom"]')!.click(); await wait(20);
       clickText(".animation-zoom-choice button", "Zoom out"); await wait(20);

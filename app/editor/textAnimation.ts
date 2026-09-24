@@ -1,4 +1,4 @@
-import { clamp, clipDuration, type AnimationLayer, type AnimationName, type Clip, type TextAnimationOptions, type TextClip } from "./model";
+import { clamp, clipDuration, type AnimationLayer, type AnimationName, type Clip, type ComboAnimation, type TextAnimationOptions, type TextClip } from "./model";
 type AnimationTarget = Clip | TextClip;
 const durationOf = (item: AnimationTarget) => "sourceEnd" in item ? clipDuration(item) : item.duration;
 
@@ -198,7 +198,83 @@ export function textMotion(t: AnimationTarget, time: number, includeItemOpacity 
     m.characters = Math.min(m.characters, part.characters);
     m.reveals.push(...part.reveals);
   }
+  const combo = comboMotion(t, time);
+  m.x += combo.x;
+  m.y += combo.y;
+  m.scaleX *= combo.scaleX;
+  m.scaleY *= combo.scaleY;
+  m.rotation += combo.rotation;
+  m.opacity *= combo.opacity;
+  m.blur += combo.blur;
+  m.characters = Math.min(m.characters, combo.characters);
+  m.reveals.push(...combo.reveals);
   if (includeItemOpacity) m.opacity *= t.opacity;
   if (local < 0 || local >= duration) m.opacity = 0;
   return m;
+}
+
+export function comboMotion(t: AnimationTarget, time: number): TextMotion {
+  const motion = pose("None", 1, false);
+  const local = time - t.start;
+  if (local < 0 || local >= durationOf(t)) return motion;
+  for (const animation of t.comboAnimations ?? []) {
+    const layer = animation as ComboAnimation;
+    const amount = clamp(layer.amount, 0, 100) / 100;
+    const cycle = local * Math.PI * 2 * clamp(layer.speed, 0.1, 4);
+    const wave = Math.sin(cycle);
+    switch (layer.name) {
+      case "Zoom": {
+        const scale = 1 + wave * 0.16 * amount;
+        motion.scaleX *= scale;
+        motion.scaleY *= scale;
+        break;
+      }
+      case "Wave":
+        motion.x += Math.sin(cycle) * 0.035 * amount;
+        motion.y += Math.sin(cycle * 2 + Math.PI / 3) * 0.035 * amount;
+        motion.rotation += wave * 7 * amount;
+        break;
+      case "Pulse": {
+        const scale = 1 + Math.max(0, wave) * 0.14 * amount;
+        motion.scaleX *= scale;
+        motion.scaleY *= scale;
+        break;
+      }
+      case "Float":
+        motion.y += wave * 0.055 * amount;
+        motion.x += Math.cos(cycle) * 0.012 * amount;
+        break;
+      case "Rock":
+        motion.rotation += wave * 12 * amount;
+        break;
+      case "Shake":
+        motion.x += Math.sin(cycle * 7) * 0.012 * amount;
+        motion.y += Math.cos(cycle * 9) * 0.009 * amount;
+        motion.rotation += Math.sin(cycle * 6) * 2.5 * amount;
+        break;
+      case "Heartbeat": {
+        const beat = Math.max(0, wave);
+        const afterbeat = Math.max(0, Math.sin(cycle * 2 - 0.9));
+        const scale = 1 + (beat * beat + afterbeat * afterbeat * 0.55) * 0.16 * amount;
+        motion.scaleX *= scale;
+        motion.scaleY *= scale;
+        break;
+      }
+      case "Spin":
+        motion.rotation += local * 360 * clamp(layer.speed, 0.1, 4) * amount;
+        break;
+      case "Breathe": {
+        const scale = 1 + wave * 0.09 * amount;
+        motion.scaleX *= scale;
+        motion.scaleY *= scale;
+        break;
+      }
+      case "Jelly":
+        motion.scaleX *= 1 + wave * 0.13 * amount;
+        motion.scaleY *= 1 - wave * 0.13 * amount;
+        motion.rotation += Math.sin(cycle * 2) * 4 * amount;
+        break;
+    }
+  }
+  return motion;
 }

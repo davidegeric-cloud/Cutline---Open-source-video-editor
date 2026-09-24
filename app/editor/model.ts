@@ -49,6 +49,49 @@ export type AnimationName =
   | "Typewriter"
   | "Drift"
   | "Custom";
+export const COMBO_ANIMATIONS = [
+  "Zoom",
+  "Wave",
+  "Pulse",
+  "Float",
+  "Rock",
+  "Shake",
+  "Heartbeat",
+  "Spin",
+  "Breathe",
+  "Jelly",
+] as const;
+export type ComboAnimationName = (typeof COMBO_ANIMATIONS)[number];
+export type ComboAnimation = {
+  name: ComboAnimationName;
+  /** Loop rate multiplier, with 1 as the default. */
+  speed: number;
+  /** Strength from 0 to 100 percent. */
+  amount: number;
+};
+export function makeComboAnimation(name: ComboAnimationName): ComboAnimation {
+  return {
+    name,
+    speed: name === "Zoom" || name === "Breathe" ? 0.5 : name === "Wave" || name === "Float" ? 0.7 : 1,
+    amount: name === "Shake" || name === "Spin" ? 35 : 50,
+  };
+}
+export function normalizeComboAnimations(value: unknown): ComboAnimation[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<ComboAnimationName>();
+  return value.flatMap((raw) => {
+    if (!raw || typeof raw !== "object") return [];
+    const layer = raw as Partial<ComboAnimation>;
+    if (!COMBO_ANIMATIONS.includes(layer.name as ComboAnimationName) || seen.has(layer.name as ComboAnimationName)) return [];
+    const name = layer.name as ComboAnimationName;
+    seen.add(name);
+    return [{
+      name,
+      speed: clamp(Number(layer.speed ?? 1), 0.1, 4),
+      amount: clamp(Number(layer.amount ?? 50), 0, 100),
+    }];
+  });
+}
 export type TextAnimationOptions = {
   /** 0° moves right, 90° down. Used by directional presets and Custom. */
   angle?: number;
@@ -128,6 +171,7 @@ export type Clip = {
   rotation: number;
   opacity: number;
   animation?: AnimationName;
+  comboAnimations?: ComboAnimation[];
   animationDuration?: number;
   animationSettings?: TextAnimationOptions;
   animationStack?: AnimationLayer[];
@@ -192,6 +236,7 @@ export type TextClip = {
   padding: number;
   radius: number;
   animation: AnimationName;
+  comboAnimations?: ComboAnimation[];
   animationDuration: number;
   animationSettings?: TextAnimationOptions;
   animationStack?: AnimationLayer[];
@@ -360,6 +405,7 @@ export function makeClip(asset: Asset, start = 0, track = 0): Clip {
     rotation: 0,
     opacity: 1,
     animation: "None",
+    comboAnimations: [],
     animationDuration: 0.5,
     exitAnimation: "None",
     exitAnimationDuration: 0.5,
@@ -417,6 +463,7 @@ export function makeText(start = 0, patch: Partial<TextClip> = {}): TextClip {
     padding: 20,
     radius: 12,
     animation: "None",
+    comboAnimations: [],
     animationDuration: 0.5,
     exitAnimation: "None",
     exitAnimationDuration: 0.5,
@@ -547,6 +594,7 @@ export function freezeFrame(
     transition: "None",
     animation: "None",
     exitAnimation: "None",
+    comboAnimations: [],
     animationStack: [],
     exitAnimationStack: [],
     keyframes: [],
@@ -804,6 +852,7 @@ export function migrateProject(raw: unknown, restoredAssets: Asset[]): Project {
       Number(c.sourceEnd) || asset.duration,
     );
     c.effects = Array.isArray(c.effects) ? c.effects : [];
+    c.comboAnimations = normalizeComboAnimations(c.comboAnimations);
     c.keyframes = Array.isArray(c.keyframes) ? c.keyframes : [];
     c.propertyKeyframes = c.propertyKeyframes && typeof c.propertyKeyframes === "object" ? c.propertyKeyframes : {};
     if (asset.kind === "image" && c.fit === "cover" && !c.fitExplicit && !c.propertyKeyframes.fit?.length) c.fit = "contain";
@@ -827,6 +876,7 @@ export function migrateProject(raw: unknown, restoredAssets: Asset[]): Project {
       t.duration = Math.max(MIN_DURATION, t.duration);
       t.track = Math.floor(clamp(Number(t.track), 0, 9999));
       t.effects = Array.isArray(t.effects) ? t.effects : [];
+      t.comboAnimations = normalizeComboAnimations(t.comboAnimations);
       t.fillMode = t.fillMode === "linear" || t.fillMode === "radial" ? t.fillMode : "solid";
       t.gradientAngle = clamp(Number(t.gradientAngle), 0, 360);
       t.gradientCenterX = clamp(Number(t.gradientCenterX), 0, 1);

@@ -44,6 +44,10 @@ import {
   togglePropertyKeyframe,
   transitionSource,
   type Clip,
+  type ComboAnimation,
+  type ComboAnimationName,
+  COMBO_ANIMATIONS,
+  makeComboAnimation,
   type GradientStop,
   type Project,
   type Selection,
@@ -71,10 +75,11 @@ export function Inspector({
 }: Props) {
   const isDesktop = typeof window !== "undefined" && Boolean(window.cutlineDesktop);
   const [tab, setTab] = useState("Basic");
-  const [animationPhase, setAnimationPhase] = useState<"Entrance" | "Exit">(
+  const [animationPhase, setAnimationPhase] = useState<"Entrance" | "Exit" | "Combo">(
     "Entrance",
   );
   const [selectedAnimationName, setSelectedAnimationName] = useState<string | null>(null);
+  const [selectedComboName, setSelectedComboName] = useState<ComboAnimationName | null>(null);
   const [customPresets, setCustomPresets] = useState<CustomAnimationPreset[]>(readCustomAnimationPresets);
   const [newPresetName, setNewPresetName] = useState("");
   const [deletePresetId, setDeletePresetId] = useState<string | null>(null);
@@ -226,19 +231,22 @@ export function Inspector({
   const tk = (name: keyof TextClip, value: number | string | boolean) => keyButton(text, String(name), value);
   const animationItem = text ?? (clip?.kind === "video" ? clip : undefined);
   const animationLength = animationItem ? ("sourceEnd" in animationItem ? clipDuration(animationItem) : animationItem.duration) : 0;
-  const phaseStack = animationItem ? animationLayers(animationItem, animationPhase) : [];
+  const phaseStack = animationItem && animationPhase !== "Combo" ? animationLayers(animationItem, animationPhase) : [];
   const selectedLayer = phaseStack.find((layer) => layer.name === selectedAnimationName) ?? phaseStack[0];
   const phaseBase = selectedLayer?.name ?? "None";
   const phaseSettings = selectedLayer?.settings ?? {};
-  const phaseDefaults = defaultAnimationSettings(phaseBase, animationPhase);
+  const phaseDefaults = animationPhase === "Combo" ? {} : defaultAnimationSettings(phaseBase, animationPhase);
   const phaseOptions = { ...phaseDefaults, ...phaseSettings };
+  const comboStack = animationItem?.comboAnimations ?? [];
+  const selectedCombo = comboStack.find((layer) => layer.name === selectedComboName) ?? comboStack[0];
   const phaseDuration = animationItem && (animationPhase === "Entrance" ? animationItem.animationDuration : animationItem.exitAnimationDuration) || 0.5;
-  const activePresetName = animationItem && (animationPhase === "Entrance" ? animationItem.animationPresetName : animationItem.exitAnimationPresetName);
+  const activePresetName = animationItem && animationPhase !== "Combo" ? (animationPhase === "Entrance" ? animationItem.animationPresetName : animationItem.exitAnimationPresetName) : undefined;
   const updateAnimationItem = (patch: Partial<Clip> & Partial<TextClip>) => {
     if (text) updateText(patch);
     else if (clip) updateClip(patch);
   };
   const setAnimationStack = (layers: AnimationLayer[], presetName?: string, duration?: number) => {
+    if (animationPhase === "Combo") return;
     const first = layers[0];
     const patch = {
       animation: first?.name ?? "None",
@@ -261,11 +269,23 @@ export function Inspector({
       ? { ...layer, settings: { ...layer.settings, ...patch } } : layer));
   };
   const chooseAnimation = (name: TextClip["animation"]) => {
+    if (animationPhase === "Combo") return;
     if (name === "None") { setAnimationStack([]); setSelectedAnimationName(null); return; }
     const exists = phaseStack.some((layer) => layer.name === name);
     setAnimationStack(exists ? phaseStack.filter((layer) => layer.name !== name)
       : [...phaseStack, { name, settings: {} }]);
     setSelectedAnimationName(exists ? null : name);
+  };
+  const chooseComboAnimation = (name: ComboAnimationName) => {
+    const exists = comboStack.some((layer) => layer.name === name);
+    updateAnimationItem({ comboAnimations: exists
+      ? comboStack.filter((layer) => layer.name !== name)
+      : [...comboStack, makeComboAnimation(name)] });
+    setSelectedComboName(exists ? null : name);
+  };
+  const updateComboAnimation = (patch: Partial<Pick<ComboAnimation, "speed" | "amount">>) => {
+    if (!selectedCombo) return;
+    updateAnimationItem({ comboAnimations: comboStack.map((layer) => layer.name === selectedCombo.name ? { ...layer, ...patch } : layer) });
   };
   const applyCustomPreset = (preset: CustomAnimationPreset, append = false) => {
     const incoming = (preset.layers ?? [{ name: preset.base, settings: preset.settings }])
@@ -276,7 +296,7 @@ export function Inspector({
     setSelectedAnimationName(incoming[0]?.name ?? null);
   };
   const saveCustomPreset = () => {
-    if (!animationItem || !phaseStack.length || !newPresetName.trim()) return;
+    if (!animationItem || animationPhase === "Combo" || !phaseStack.length || !newPresetName.trim()) return;
     const preset = createCustomAnimationPreset(newPresetName, animationPhase, phaseStack[0].name, phaseDuration, phaseStack[0].settings, phaseStack);
     const next = [...customPresets, preset].slice(-50);
     if (!writeCustomAnimationPresets(next)) { setPresetError("Could not save presets on this device."); return; }
@@ -727,7 +747,7 @@ export function Inspector({
                   role="group"
                   aria-label="Animation phase"
                 >
-                  {(["Entrance", "Exit"] as const).map((phase) => (
+                  {(["Entrance", "Exit", "Combo"] as const).map((phase) => (
                     <button
                       key={phase}
                       aria-pressed={animationPhase === phase}
@@ -790,20 +810,42 @@ export function Inspector({
                     />
                   </Section>
                 )}
-                <p className="field-note animation-stack-hint">Select more than one animation to stack them. Click a selected animation again to remove it.</p>
+                {animationPhase === "Combo" && (
+                  <>
+                    <Section title={`Combo · ${comboStack.length} active`}>
+                      <p className="field-note">These loops stay active for the full clip, between and underneath its entrance and exit animations.</p>
+                      <div className="choice-grid combo-choice-grid">
+                        {COMBO_ANIMATIONS.map((name) => (
+                          <button key={name} aria-label={`Combo ${name}`} aria-pressed={comboStack.some((layer) => layer.name === name)}
+                            className={comboStack.some((layer) => layer.name === name) ? "active" : ""}
+                            onClick={() => chooseComboAnimation(name)}>{name}</button>
+                        ))}
+                      </div>
+                    </Section>
+                    {comboStack.length > 0 && <div className="animation-stack-list" aria-label="Combo animation stack">
+                      {comboStack.map((layer, index) => <button key={layer.name} className={selectedCombo?.name === layer.name ? "active" : ""}
+                        aria-label={`Edit ${layer.name} combo`} onClick={() => setSelectedComboName(layer.name)}>{index + 1}. {layer.name}</button>)}
+                    </div>}
+                    {selectedCombo && <Section title={`Fine tune · ${selectedCombo.name}`}>
+                      <Range label="Intensity" value={selectedCombo.amount} min={0} max={100} suffix="%" onChange={(value) => updateComboAnimation({ amount: value })} />
+                      <Range label="Loop speed" value={selectedCombo.speed} min={0.1} max={3} step={0.1} suffix="×" onChange={(value) => updateComboAnimation({ speed: value })} />
+                    </Section>}
+                  </>
+                )}
+                {animationPhase !== "Combo" && <p className="field-note animation-stack-hint">Select more than one animation to stack them. Click a selected animation again to remove it.</p>}
                 {phaseStack.length > 0 && <div className="animation-stack-list" aria-label={`${animationPhase} animation stack`}>
                   {phaseStack.map((layer, index) => <button key={index} className={selectedLayer === layer ? "active" : ""}
                     aria-label={`Edit ${layer.name} in ${animationPhase.toLowerCase()} stack`}
                     onClick={() => setSelectedAnimationName(layer.name)}>{index + 1}. {layer.name}</button>)}
                 </div>}
                 {selectedLayer && (
-                  <Section title={`Fine tune · ${phaseBase}`} action={previewAnimation ? <button title={`Preview ${animationPhase.toLowerCase()}`} aria-label={`Preview ${animationPhase.toLowerCase()} animation`} onClick={() => previewAnimation(animationPhase, animationItem)}><Play size={14} /></button> : undefined}>
+                  <Section title={`Fine tune · ${phaseBase}`} action={previewAnimation ? <button title={`Preview ${animationPhase.toLowerCase()}`} aria-label={`Preview ${animationPhase.toLowerCase()} animation`} onClick={() => previewAnimation(animationPhase === "Exit" ? "Exit" : "Entrance", animationItem)}><Play size={14} /></button> : undefined}>
                     {activePresetName && <p className="animation-preset-label">Using “{activePresetName}” · edits here only change this clip.</p>}
                     <AnimationTuner name={phaseBase} options={phaseOptions} onChange={updateAnimationOptions} />
                     <p className="field-note">These settings change only {phaseBase} in the stack. Preview or scrub to see the combined motion.</p>
                   </Section>
                 )}
-                <Section title={`My ${animationPhase.toLowerCase()} presets`}>
+                {animationPhase !== "Combo" && <Section title={`My ${animationPhase.toLowerCase()} presets`}>
                   {customPresets.filter((preset) => preset.phase === animationPhase).length ? (
                     <div className="custom-animation-list">
                       {customPresets.filter((preset) => preset.phase === animationPhase).map((preset) => (
@@ -823,15 +865,15 @@ export function Inspector({
                   </div>
                   {presetError && <p className="field-note" role="alert">{presetError}</p>}
                   <p className="field-note">Click a preset to replace this phase, or + to add it to the stack. Saved locally; applied motion stays in your project backup.</p>
-                </Section>
-                <div className="inspector-tip">
+                </Section>}
+                {animationPhase !== "Combo" && <div className="inspector-tip">
                   Scrub the start or end of this clip to preview. On short
                   clips, durations scale together so entrance and exit never
                   overlap. Effective timing:{" "}
                   {textAnimationTiming(animationItem).entranceDuration.toFixed(2)}s in
                   {" / "}
                   {textAnimationTiming(animationItem).exitDuration.toFixed(2)}s out.
-                </div>
+                </div>}
               </>
             )}
             {clip && activeTab === "Basic" && (
