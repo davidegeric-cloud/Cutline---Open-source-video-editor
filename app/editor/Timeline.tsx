@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  memo,
   useRef,
   useState,
   type Dispatch,
@@ -55,6 +56,7 @@ import {
 } from "./model";
 import { TRANSITIONS } from "./presets";
 import { historyReducer } from "./useProject";
+import { waveformColumns } from "./waveform";
 type Action = Parameters<typeof historyReducer>[1];
 type MenuAction = "copy" | "paste" | "split" | "freeze" | "duplicate" | "delete";
 type Props = {
@@ -850,6 +852,12 @@ export function Timeline({
                         ? project.assets.find((a) => a.id === clip.assetId)
                         : null;
                     const isSelected = selected.some((s) => s.id === item.id);
+                    const clipLeft = item.start * pps;
+                    const clipWidth = Math.max(1, (endOf(item) - item.start) * pps);
+                    // Render only the visible part of a long clip. Each drawn
+                    // sample remains ~2 screen pixels wide at every zoom level.
+                    const waveLeft = clamp(Math.floor((viewport.left - clipLeft - 128) / 256) * 256, 0, clipWidth);
+                    const waveRight = clamp(Math.ceil((viewport.left + viewport.width - clipLeft + 128) / 256) * 256, 0, clipWidth);
                     return (
                       <div
                         key={item.id}
@@ -874,8 +882,8 @@ export function Timeline({
                           (asset?.kind === "demo" ? " demo-" + asset.theme : "")
                         }
                         style={{
-                          left: item.start * pps,
-                          width: Math.max(1, (endOf(item) - item.start) * pps),
+                          left: clipLeft,
+                          width: clipWidth,
                           backgroundImage: asset?.thumbnail
                             ? 'url("' + asset.thumbnail + '")'
                             : undefined,
@@ -912,11 +920,14 @@ export function Timeline({
                           }
                         }}
                       >
-                        {clip?.kind === "audio" && (
+                        {clip?.kind === "audio" && waveRight > waveLeft && (
                           <Waveform
                             values={asset?.waveform}
-                            sourceStart={clip.sourceStart}
-                            sourceEnd={clip.sourceEnd}
+                            peaks={asset?.waveformPeaks}
+                            left={waveLeft}
+                            width={waveRight - waveLeft}
+                            sourceStart={clip.sourceStart + waveLeft / clipWidth * (clip.sourceEnd - clip.sourceStart)}
+                            sourceEnd={clip.sourceStart + waveRight / clipWidth * (clip.sourceEnd - clip.sourceStart)}
                             duration={asset?.duration}
                           />
                         )}
@@ -1058,38 +1069,43 @@ export function Timeline({
     </section>
   );
 }
-function Waveform({ values, sourceStart, sourceEnd, duration }: {
+const Waveform = memo(function Waveform({ values, peaks, left, width, sourceStart, sourceEnd, duration }: {
   values?: number[];
+  peaks?: number[];
+  left: number;
+  width: number;
   sourceStart: number;
   sourceEnd: number;
   duration?: number;
 }) {
-  const first = values?.length && duration
-    ? Math.max(0, Math.min(values.length - 1, Math.floor(sourceStart / duration * values.length)))
-    : 0;
-  const last = values?.length && duration
-    ? Math.max(first + 1, Math.min(values.length, Math.ceil(sourceEnd / duration * values.length)))
-    : values?.length ?? 0;
-  const visible = values?.slice(first, last);
-  return visible?.length ? (
+  const height = 36;
+  const columns = values && duration
+    ? waveformColumns(values, peaks, sourceStart, sourceEnd, duration, Math.ceil(width / 2))
+    : [];
+  const paths = columns.reduce((result, column, i) => {
+    const x = ((i + 0.5) * width / columns.length).toFixed(1);
+    if (column.peak > 0.002) {
+      const half = Math.min(16, column.peak * 16);
+      result.peak += `M${x} ${(18 - half).toFixed(1)}V${(18 + half).toFixed(1)}`;
+    }
+    if (column.rms > 0.002) {
+      const half = Math.min(15, column.rms * 23);
+      result.body += `M${x} ${(18 - half).toFixed(1)}V${(18 + half).toFixed(1)}`;
+    }
+    return result;
+  }, { peak: "", body: "" });
+  return columns.length ? (
     <svg
       className="waveform"
-      viewBox={"0 0 " + visible.length * 3 + " 40"}
+      style={{ left, width }}
+      viewBox={`0 0 ${width} ${height}`}
       preserveAspectRatio="none"
       aria-hidden="true"
     >
-      {visible.map((v, i) => (
-        <rect
-          key={i}
-          x={i * 3}
-          y={20 - Math.max(1, v * 19)}
-          width="1.8"
-          height={Math.max(2, v * 38)}
-          rx=".7"
-        />
-      ))}
+      <path className="waveform-peaks" d={paths.peak} />
+      <path className="waveform-body" d={paths.body} />
     </svg>
   ) : (
     <div className="audio-baseline" />
   );
-}
+});

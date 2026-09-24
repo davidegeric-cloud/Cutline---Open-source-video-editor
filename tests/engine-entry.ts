@@ -33,6 +33,7 @@ import { createRoot } from "react-dom/client";
 import Editor from "../app/Editor";
 import { Inspector } from "../app/editor/Inspector";
 import { decodeClipAudio } from "../app/editor/whisper";
+import { waveformColumns, waveformFromBuffer } from "../app/editor/waveform";
 
 const assert = (condition: unknown, message: string) => {
   if (!condition) throw new Error(message);
@@ -575,8 +576,26 @@ export async function runEngineTests() {
         audio.waveform?.some((v) => v > 0.1),
         "Waveform missing",
       );
+      assert((audio.waveform?.length ?? 0) >= 1024, "Waveform is too coarse for timeline zoom");
+      assert(audio.waveformPeaks?.length === audio.waveform?.length, "Peak envelope is missing");
     },
   );
+  await check("Waveform follows real level changes and source-time zoom", async () => {
+    const buffer = new AudioBuffer({ length: 96000, numberOfChannels: 2, sampleRate: 48000 });
+    const first = buffer.getChannelData(0);
+    const second = buffer.getChannelData(1);
+    for (let i = 0; i < first.length; i++) {
+      const amplitude = i < 48000 ? 0.06 : 0.8;
+      first[i] = Math.sin(i / 12) * amplitude;
+      second[i] = Math.sin(i / 12) * amplitude * 0.6;
+    }
+    const analyzed = waveformFromBuffer(buffer);
+    const quiet = waveformColumns(analyzed.waveform, analyzed.waveformPeaks, 0, 1, 2, 200);
+    const loud = waveformColumns(analyzed.waveform, analyzed.waveformPeaks, 1, 2, 2, 200);
+    assert(loud[100].rms > quiet[100].rms * 8, "RMS envelope ignores actual audio dynamics");
+    assert(loud[100].peak > quiet[100].peak * 8, "Peak envelope ignores transients");
+    assert(quiet.length === loud.length, "Waveform changed density with source trim");
+  });
   await check(
     "Project storage preserves old projects and embedded media",
     async () => {
@@ -990,13 +1009,38 @@ export async function runEngineTests() {
       const card = host.querySelector<HTMLButtonElement>('[aria-label="Add test-tone.wav to timeline"]');
       assert(card, "Imported audio is hidden from the Media tab");
       card!.click();
-      for (let i = 0; i < 50 && !host.querySelector(".clip-audio .waveform rect"); i++) await wait(20);
-      assert(host.querySelectorAll(".clip-audio .waveform rect").length > 0, "Audio clip has no decoded waveform on the timeline");
+      for (let i = 0; i < 50 && !host.querySelector(".clip-audio .waveform-body[d]"); i++) await wait(20);
+      const waveform = host.querySelector<SVGPathElement>(".clip-audio .waveform-body");
+      assert((waveform?.getAttribute("d") ?? "").includes("M"), "Audio clip has no decoded waveform on the timeline");
       const audioTab = [...host.querySelectorAll<HTMLButtonElement>(".library-nav button")].find((button) => button.textContent?.includes("Audio"));
       assert(audioTab, "Audio library is missing");
       audioTab!.click();
       await wait(30);
       assert(host.querySelector('[aria-label="Add test-tone.wav to timeline"]'), "Audio library lost the imported file");
+    } finally {
+      root.unmount(); host.remove();
+    }
+  });
+  await check("Existing audio projects upgrade coarse waveforms without reimporting", async () => {
+    const legacyAudio = { ...audio!, id: "legacy-waveform", kind: "audio" as const, waveform: Array(320).fill(0.25), waveformPeaks: undefined };
+    const fixture = newProject();
+    fixture.assets = [legacyAudio];
+    fixture.clips = [makeClip(legacyAudio)];
+    await saveMediaAsset({ ...legacyAudio, blob: wav });
+    await saveProject(persistable(fixture));
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    try {
+      root.render(createElement(Editor));
+      let upgraded = false;
+      for (let i = 0; i < 100 && !upgraded; i++) {
+        await wait(30);
+        const stored = await loadProject();
+        const asset = stored.project?.assets.find((item) => item.id === legacyAudio.id);
+        upgraded = (asset?.waveformPeaks?.length ?? 0) >= 1024;
+      }
+      assert(upgraded, "Saved audio did not receive a higher-resolution envelope");
     } finally {
       root.unmount(); host.remove();
     }

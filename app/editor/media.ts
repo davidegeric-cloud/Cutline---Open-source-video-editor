@@ -11,6 +11,7 @@ import {
   type Project,
 } from "./model";
 import { Renderer, type MediaSources } from "./renderer";
+import { analyzeAudioWaveform } from "./waveform";
 
 function ready(element: HTMLMediaElement, event: string, timeout = 20000) {
   return new Promise<void>((resolve, reject) => {
@@ -112,30 +113,9 @@ export async function inspectFile(file: File): Promise<Asset> {
       }
       element.removeAttribute("src");
       element.load();
-      if (kind === "audio" && file.size < 64 * 1024 * 1024) {
-        const context = new AudioContext();
-        try {
-          const buffer = await context.decodeAudioData(
-            await file.arrayBuffer(),
-          );
-          const data = buffer.getChannelData(0);
-          const bins = 320,
-            step = Math.max(1, Math.floor(data.length / bins));
-          asset.waveform = Array.from({ length: bins }, (_, i) => {
-            let max = 0;
-            for (
-              let j = i * step;
-              j < Math.min(data.length, (i + 1) * step);
-              j += 8
-            )
-              max = Math.max(max, Math.abs(data[j]));
-            return max;
-          });
-        } catch {
-          /* Waveform is optional; playable media is still usable. */
-        } finally {
-          await context.close();
-        }
+      if (kind === "audio") {
+        const waveform = await analyzeAudioWaveform(file);
+        if (waveform) Object.assign(asset, waveform);
       }
     }
     return asset;

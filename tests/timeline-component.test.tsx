@@ -5,6 +5,7 @@ import { act, useReducer, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Timeline } from "../app/editor/Timeline";
 import { historyReducer } from "../app/editor/useProject";
+import { waveformColumns } from "../app/editor/waveform";
 import { makeClip, newProject, projectDuration, setJoinTransition, type Project, type Selection, type TransitionName } from "../app/editor/model";
 import { sampleProject } from "./fixtures";
 
@@ -445,8 +446,9 @@ test("Timeline component: exact drag, cross-track move, trim, zoom, cancel, and 
     await act(async () => load(audioProject));
     const waveform = document.querySelector<SVGElement>(".clip-audio .waveform")!;
     assert.ok(waveform, "Audio clips show their waveform");
-    assert.equal(waveform.querySelectorAll("rect").length, 160, "A trimmed clip shows only its source waveform");
-    assert.ok(Number(waveform.querySelector("rect")?.getAttribute("height")) > 20, "Trimmed waveform starts at the selected source range");
+    assert.equal(waveform.querySelectorAll("rect").length, 0, "Waveform must not use stretched boxes");
+    assert.ok((waveform.querySelector(".waveform-body")?.getAttribute("d") ?? "").includes("M"), "Waveform lines are missing");
+    assert.ok(Math.abs(waveformColumns(audio.waveform, undefined, 4, 8, 8, 10)[0].rms - 0.8) < 0.001, "Trimmed waveform starts at the selected source range");
     await act(async () => load(newProject()));
     geometry();
     const emptyRuler = button("Playhead");

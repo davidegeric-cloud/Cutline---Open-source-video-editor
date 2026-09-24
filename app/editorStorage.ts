@@ -14,6 +14,7 @@ export type PersistedAsset = {
   theme: string;
   thumbnail?: string;
   waveform?: number[];
+  waveformPeaks?: number[];
   width?: number;
   height?: number;
 };

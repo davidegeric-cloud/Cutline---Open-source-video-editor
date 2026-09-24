@@ -71,6 +71,7 @@ export type Asset = {
   url?: string;
   thumbnail?: string;
   waveform?: number[];
+  waveformPeaks?: number[];
   width?: number;
   height?: number;
   sizeLabel: string;

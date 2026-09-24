@@ -1980,10 +1980,26 @@ summary::-webkit-details-marker {
 }
 .waveform {
   position: absolute;
-  inset: 5px 0 0;
-  width: 100%;
-  height: calc(100% - 5px);
-  fill: #70c5a17a;
+  top: 21px;
+  bottom: 2px;
+  height: calc(100% - 23px);
+  overflow: visible;
+  pointer-events: none;
+}
+.waveform path {
+  fill: none;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.waveform-peaks {
+  stroke: #a0e8c3;
+  stroke-width: 1;
+  opacity: .48;
+}
+.waveform-body {
+  stroke: #b6ffdc;
+  stroke-width: 1.35;
+  opacity: .9;
 }
 .audio-baseline {
   position: absolute;

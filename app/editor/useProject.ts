@@ -15,6 +15,7 @@ import {
   type Asset,
   type Project,
 } from "./model";
+import { analyzeAudioWaveform, type WaveformData } from "./waveform";
 
 type History = {
   project: Project;
@@ -28,9 +29,25 @@ type Action =
   | { type: "edit"; fn: (p: Project) => Project; group: string; at: number }
   | { type: "preview"; fn: (p: Project) => Project }
   | { type: "begin" | "commit" | "cancel" | "undo" | "redo" }
+  | { type: "waveform"; id: string; data: WaveformData }
   | { type: "load"; project: Project };
 export function historyReducer(s: History, a: Action): History {
   switch (a.type) {
+    case "waveform": {
+      if (!s.project.assets.some((asset) => asset.id === a.id)) return s;
+      const update = (project: Project): Project => ({
+        ...project,
+        assets: project.assets.map((asset) => asset.id === a.id ? { ...asset, ...a.data } : asset),
+      });
+      // Analysis is asset metadata, not a user edit. Undo must not erase it.
+      return {
+        ...s,
+        project: update(s.project),
+        past: s.past.map(update),
+        future: s.future.map(update),
+        origin: s.origin && update(s.origin),
+      };
+    }
     case "load":
       return {
         project: a.project,
@@ -124,6 +141,8 @@ export function useProject(onError: (message: string) => void) {
     [saveState, setSaveState] = useState("Loading project");
   const blobs = useRef(new Map<string, PersistedMedia>()),
     urls = useRef(new Map<string, string>());
+  const queuedWaveforms = useRef(new Set<string>());
+  const waveformQueue = useRef(Promise.resolve());
   const current = useRef(state.project);
   useEffect(() => {
     current.current = state.project;
@@ -165,6 +184,19 @@ export function useProject(onError: (message: string) => void) {
       active = false;
     };
   }, [restore, onError]);
+  useEffect(() => {
+    if (!ready) return;
+    for (const asset of state.project.assets) {
+      if (asset.kind !== "audio" || (asset.waveformPeaks?.length ?? 0) >= 1024 || queuedWaveforms.current.has(asset.id)) continue;
+      const blob = blobs.current.get(asset.id)?.blob;
+      if (!blob) continue;
+      queuedWaveforms.current.add(asset.id);
+      waveformQueue.current = waveformQueue.current.then(async () => {
+        const data = await analyzeAudioWaveform(blob);
+        if (data) dispatch({ type: "waveform", id: asset.id, data });
+      }).catch(() => {});
+    }
+  }, [ready, state.project.assets]);
   useEffect(() => {
     if (!ready || state.origin) return;
     let active = true;
