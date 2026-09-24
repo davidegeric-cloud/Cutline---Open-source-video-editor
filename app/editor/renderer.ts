@@ -36,6 +36,19 @@ export class Renderer {
   private transitionLayer = surface();
   private temp = surface();
   private pixel = surface();
+  private wavySurface = surface();
+  private wavyFallbackSurface = surface();
+  private wavyAttempted = false;
+  private wavyState: {
+    gl: WebGLRenderingContext;
+    program: WebGLProgram;
+    texture: WebGLTexture;
+    buffer: WebGLBuffer;
+    position: number;
+    amplitude: WebGLUniformLocation;
+    waves: WebGLUniformLocation;
+    phase: WebGLUniformLocation;
+  } | null = null;
   bounds: Bounds[] = [];
 
   draw(
@@ -429,24 +442,13 @@ export class Renderer {
           break;
         }
         case "Wavy": {
-          // Rebuild the isolated clip layer as short horizontal slices. A
-          // traveling sine offset gives the footage a smooth, animated wave
-          // without touching the layers behind it (including for text).
           this.copy();
           ctx.globalCompositeOperation = "source-over";
           ctx.globalAlpha = 1;
           ctx.clearRect(0, 0, w, h);
-          const bands = Math.min(240, h);
-          const bandHeight = h / bands;
-          const amplitude = w * 0.035 * a;
-          const phase = time * Math.PI * 1.5;
-          for (let band = 0; band < bands; band++) {
-            const y = band * bandHeight;
-            const height = Math.min(bandHeight + 0.5, h - y);
-            const vertical = (y + height / 2) / h;
-            const offset = Math.sin(vertical * Math.PI * 6 + phase) * amplitude;
-            ctx.drawImage(this.temp, 0, y, w, height, offset, y, w, height);
-          }
+          const waves = clamp(e.waves ?? 4, 1, 16);
+          const warped = this.renderWavy(this.temp, w, h, a, waves, time);
+          if (warped) ctx.drawImage(warped, 0, 0, w, h);
           break;
         }
       }
@@ -475,6 +477,139 @@ export class Renderer {
     const ctx = this.temp.getContext("2d")!;
     ctx.clearRect(0, 0, this.temp.width, this.temp.height);
     ctx.drawImage(this.layer, 0, 0);
+  }
+
+  private renderWavy(
+    source: HTMLCanvasElement,
+    w: number,
+    h: number,
+    amount: number,
+    waves: number,
+    time: number,
+  ) {
+    if (!this.wavyState && !this.wavyAttempted) {
+      this.wavyAttempted = true;
+      this.wavyState = this.createWavyRenderer();
+    }
+    if (!this.wavyState) return this.renderWavyFallback(source, w, h, amount, waves, time);
+    const { gl, program, texture, buffer, position, amplitude, waves: waveCount, phase } = this.wavyState;
+    if (this.wavySurface.width !== w || this.wavySurface.height !== h) {
+      this.wavySurface.width = w;
+      this.wavySurface.height = h;
+    }
+    gl.viewport(0, 0, w, h);
+    gl.useProgram(program);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    gl.uniform1f(amplitude, 0.035 * amount);
+    gl.uniform1f(waveCount, waves);
+    gl.uniform1f(phase, time * 1.5);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    return this.wavySurface;
+  }
+
+  private createWavyRenderer() {
+    const gl = this.wavySurface.getContext("webgl", {
+      alpha: true,
+      antialias: false,
+      preserveDrawingBuffer: true,
+      premultipliedAlpha: true,
+    });
+    if (!gl) return null;
+    const compile = (kind: number, source: string) => {
+      const shader = gl.createShader(kind);
+      if (!shader) return null;
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        gl.deleteShader(shader);
+        return null;
+      }
+      return shader;
+    };
+    const vertex = compile(gl.VERTEX_SHADER, `
+      attribute vec2 a_position;
+      varying vec2 v_uv;
+      void main() {
+        gl_Position = vec4(a_position, 0.0, 1.0);
+        v_uv = a_position * 0.5 + 0.5;
+      }
+    `);
+    const fragment = compile(gl.FRAGMENT_SHADER, `
+      precision mediump float;
+      varying vec2 v_uv;
+      uniform sampler2D u_source;
+      uniform float u_amplitude;
+      uniform float u_waves;
+      uniform float u_phase;
+      void main() {
+        float x = v_uv.x + sin(v_uv.y * 6.28318530718 * u_waves + u_phase) * u_amplitude;
+        gl_FragColor = (x < 0.0 || x > 1.0)
+          ? vec4(0.0)
+          : texture2D(u_source, vec2(x, v_uv.y));
+      }
+    `);
+    if (!vertex || !fragment) return null;
+    const program = gl.createProgram();
+    if (!program) return null;
+    gl.attachShader(program, vertex);
+    gl.attachShader(program, fragment);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return null;
+    const buffer = gl.createBuffer();
+    const texture = gl.createTexture();
+    const position = gl.getAttribLocation(program, "a_position");
+    const amplitude = gl.getUniformLocation(program, "u_amplitude");
+    const waves = gl.getUniformLocation(program, "u_waves");
+    const phase = gl.getUniformLocation(program, "u_phase");
+    if (!buffer || !texture || position < 0 || !amplitude || !waves || !phase) return null;
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return { gl, program, texture, buffer, position, amplitude, waves, phase };
+  }
+
+  private renderWavyFallback(
+    source: HTMLCanvasElement,
+    w: number,
+    h: number,
+    amount: number,
+    waves: number,
+    time: number,
+  ) {
+    const input = source.getContext("2d")!.getImageData(0, 0, w, h);
+    const output = new ImageData(w, h);
+    const amplitude = w * 0.035 * amount;
+    const phase = time * 1.5;
+    for (let y = 0; y < h; y++) {
+      const offset = Math.sin(((y + 0.5) / h) * Math.PI * 2 * waves + phase) * amplitude;
+      for (let x = 0; x < w; x++) {
+        const sourceX = x - offset;
+        if (sourceX < 0 || sourceX >= w) continue;
+        const left = Math.floor(sourceX);
+        const right = Math.min(w - 1, left + 1);
+        const mix = sourceX - left;
+        const targetIndex = (y * w + x) * 4;
+        const leftIndex = (y * w + left) * 4;
+        const rightIndex = (y * w + right) * 4;
+        for (let channel = 0; channel < 4; channel++)
+          output.data[targetIndex + channel] = input.data[leftIndex + channel] * (1 - mix) + input.data[rightIndex + channel] * mix;
+      }
+    }
+    this.wavyFallbackSurface.width = w;
+    this.wavyFallbackSurface.height = h;
+    this.wavyFallbackSurface.getContext("2d")!.putImageData(output, 0, 0);
+    return this.wavyFallbackSurface;
   }
 
   private drawText(

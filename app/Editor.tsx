@@ -1095,7 +1095,7 @@ export default function Editor() {
                               )
                             : [
                                 ...(target.effects ?? []),
-                                { name: effect.name, amount: 50 },
+                                { name: effect.name, amount: 50, ...(effect.name === "Wavy" ? { waves: 4 } : {}) },
                               ];
                           if (selectedText)
                             edit((p) => ({

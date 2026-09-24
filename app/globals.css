@@ -1578,6 +1578,15 @@ summary::-webkit-details-marker {
   gap: 7px;
   align-items: flex-start;
 }
+.effect-control-wrap {
+  margin: 0 0 14px;
+}
+.effect-control-wrap > .range-field {
+  margin-top: 8px;
+}
+.effect-control-wrap .effect-control {
+  margin: 0;
+}
 .effect-control > .range-field {
   flex: 1;
   min-width: 0;

@@ -1096,43 +1096,54 @@ export function Inspector({
                         </p>
                       ) : (
                         clip.effects.map((effect) => (
-                          <div className="effect-control" key={effect.name}>
-                            <Range
-                              label={effect.name}
-                              keyframe={keyButton(clip, `effect:${effect.name}`, effect.amount)}
-                              value={effect.amount}
-                              min={0}
-                              max={100}
-                              suffix="%"
-                              onChange={(v) =>
-                                updateClip(
-                                  {
-                                    effects: clip.effects.map((e) =>
-                                      e.name === effect.name
-                                        ? { ...e, amount: v }
-                                        : e,
-                                    ),
-                                  },
-                                  effect.name,
-                                )
-                              }
-                            />
-                            <button
-                              title={"Remove " + effect.name}
-                              aria-label={"Remove " + effect.name}
-                              onClick={() =>
-                                updateClip(
-                                  {
-                                    effects: clip.effects.filter(
-                                      (e) => e.name !== effect.name,
-                                    ),
-                                  },
-                                  "",
-                                )
-                              }
-                            >
-                              <X size={13} />
-                            </button>
+                          <div className="effect-control-wrap" key={effect.name}>
+                            <div className="effect-control">
+                              <Range
+                                label={effect.name}
+                                keyframe={keyButton(clip, `effect:${effect.name}`, effect.amount)}
+                                value={effect.amount}
+                                min={0}
+                                max={100}
+                                suffix="%"
+                                onChange={(v) =>
+                                  updateClip(
+                                    {
+                                      effects: clip.effects.map((e) =>
+                                        e.name === effect.name
+                                          ? { ...e, amount: v }
+                                          : e,
+                                      ),
+                                    },
+                                    effect.name,
+                                  )
+                                }
+                              />
+                              <button
+                                title={"Remove " + effect.name}
+                                aria-label={"Remove " + effect.name}
+                                onClick={() =>
+                                  updateClip(
+                                    {
+                                      effects: clip.effects.filter(
+                                        (e) => e.name !== effect.name,
+                                      ),
+                                    },
+                                    "",
+                                  )
+                                }
+                              >
+                                <X size={13} />
+                              </button>
+                            </div>
+                            {effect.name === "Wavy" && <Range
+                              label="Wave count"
+                              value={effect.waves ?? 4}
+                              min={1}
+                              max={16}
+                              step={1}
+                              suffix=" waves"
+                              onChange={(waves) => updateClip({ effects: clip.effects.map((e) => e.name === effect.name ? { ...e, waves } : e) }, `${effect.name}:waves`)}
+                            />}
                           </div>
                         ))
                       )}
@@ -1427,35 +1438,46 @@ function EffectsControls({
         </p>
       )}
       {effects.map((effect) => (
-        <div className="effect-control" key={effect.name}>
-          <Range
-            label={effect.name}
-            keyframe={keyframe?.(effect.name, effect.amount)}
-            value={effect.amount}
-            min={0}
-            max={100}
-            suffix="%"
-            onChange={(amount) =>
-              onChange(
-                effects.map((e) =>
-                  e.name === effect.name ? { ...e, amount } : e,
-                ),
-                effect.name,
-              )
-            }
-          />
-          <button
-            title={"Remove " + effect.name}
-            aria-label={"Remove " + effect.name}
-            onClick={() =>
-              onChange(
-                effects.filter((e) => e.name !== effect.name),
-                "",
-              )
-            }
-          >
-            <X size={13} />
-          </button>
+        <div className="effect-control-wrap" key={effect.name}>
+          <div className="effect-control">
+            <Range
+              label={effect.name}
+              keyframe={keyframe?.(effect.name, effect.amount)}
+              value={effect.amount}
+              min={0}
+              max={100}
+              suffix="%"
+              onChange={(amount) =>
+                onChange(
+                  effects.map((e) =>
+                    e.name === effect.name ? { ...e, amount } : e,
+                  ),
+                  effect.name,
+                )
+              }
+            />
+            <button
+              title={"Remove " + effect.name}
+              aria-label={"Remove " + effect.name}
+              onClick={() =>
+                onChange(
+                  effects.filter((e) => e.name !== effect.name),
+                  "",
+                )
+              }
+            >
+              <X size={13} />
+            </button>
+          </div>
+          {effect.name === "Wavy" && <Range
+            label="Wave count"
+            value={effect.waves ?? 4}
+            min={1}
+            max={16}
+            step={1}
+            suffix=" waves"
+            onChange={(waves) => onChange(effects.map((e) => e.name === effect.name ? { ...e, waves } : e), `${effect.name}:waves`)}
+          />}
         </div>
       ))}
     </Section>

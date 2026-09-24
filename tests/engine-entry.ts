@@ -177,12 +177,15 @@ export async function runEngineTests() {
     output.height = canvas.height;
     renderer.draw(canvas, p, 1.3, new Map());
     const original = hash(canvas);
-    const wavy = { ...p, clips: [{ ...c, effects: [{ name: "Wavy" as const, amount: 85 }] }] };
+    const wavy = { ...p, clips: [{ ...c, effects: [{ name: "Wavy" as const, amount: 85, waves: 4 }] }] };
     renderer.draw(canvas, wavy, 1.3, new Map());
     const distorted = hash(canvas);
     assert(distorted !== original, "Wavy did not warp the clip image");
     new Renderer().draw(output, wavy, 1.3, new Map());
     assert(hash(output) === distorted, "Wavy differs between preview and export");
+    const moreWaves = { ...p, clips: [{ ...c, effects: [{ name: "Wavy" as const, amount: 85, waves: 11 }] }] };
+    renderer.draw(canvas, moreWaves, 1.3, new Map());
+    assert(hash(canvas) !== distorted, "Changing the Wavy count does not alter the distortion");
     renderer.draw(canvas, wavy, 1.7, new Map());
     assert(hash(canvas) !== distorted, "Wavy does not travel over time");
   });

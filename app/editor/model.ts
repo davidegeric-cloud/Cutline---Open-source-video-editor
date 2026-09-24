@@ -194,7 +194,7 @@ export type Clip = {
   temperature: number;
   transition: TransitionName;
   transitionDuration: number;
-  effects: { name: EffectName; amount: number }[];
+  effects: { name: EffectName; amount: number; waves?: number }[];
   keyframes: Keyframe[];
   propertyKeyframes?: PropertyKeyframes;
 };
