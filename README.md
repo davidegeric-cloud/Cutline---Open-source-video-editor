@@ -1,6 +1,6 @@
-# Cutline 0.3.18
+# Cutline 0.3.19
 
-A free, device-local video editor for Windows and the web. No subscription, account in the PC app, or export watermark. 
+A free, device-local video editor for Windows and the web. No subscription, account in the PC app, or export watermark. The hosted development site uses its existing private Sites access policy. Source media is never uploaded by the editor.
 
 ## Screenshots
 
@@ -30,7 +30,7 @@ These are captures of the Windows editor with a synthetic sample project; no per
 - 12 adjustable, stackable effects; 12 incoming transitions; 12 color looks; brightness, contrast, saturation, and temperature.
 - 14 text presets, six font choices, outlines, shadows/glow, backgrounds, spacing, rotation, opacity, and alignment. Customizable linear and radial text gradients support up to eight color stops, exact hex colors, stop positions, direction, center, radius, palettes, reversal, and keyframes. Text and visual clips support independently tunable entrance/exit animation stacks: combine Drift, Zoom, Wipe, Fade, and other presets at once, then tune each layer's direction/angle, distance, zoom in or out, rotation, blur, fade, and easing. Name and save an entire stack for reuse. Saved recipes live on each device; applying one copies its settings into the project, including backups.
 - Per-property keyframe diamonds for video transform/color/effects/audio and text appearance/effects, plus legacy motion keyframes. Keyframed preview and export share the same renderer.
-- Optional, free on-device OpenAI Whisper Tiny auto subtitles (model download requires confirmation), SRT import, manual captions, editable symbol stickers, zoom-aware audio waveforms with RMS/peak detail, gain, fade-in/out and track mute/hide. Older saved audio waveforms are refreshed from their embedded media. Subtitle errors remain visible in the dialog so they can be retried.
+- Optional, free on-device Whisper Large v3 auto subtitles by default, with multilingual/English Tiny choices (model download starts only when you press Download & transcribe), SRT import, manual captions, editable symbol stickers, zoom-aware audio waveforms with RMS/peak detail, gain, fade-in/out and track mute/hide. Full Large v3 uses q4f16 weights of about 1 GB and requires a WebGPU-capable GPU; model files are from [Hugging Face](https://huggingface.co/onnx-community/whisper-large-v3-ONNX). Models stay cached on your device. Older saved audio waveforms are refreshed from their embedded media. Subtitle errors remain visible in the dialog so they can be retried.
 - Autosaved projects with retained project history, portable `.cutline` backups containing imported media, and legacy project migration. The desktop waits for a save before closing.
 - Browser-supported MP4/H.264 or WebM/VP9/VP8 export, 720p/1080p/2160p, 30/60 fps, native save dialogs, and immediate cancellation.
 
@@ -46,7 +46,7 @@ Web projects and PC projects use separate local storage. Transfer edits using a 
 
 The Windows release is unsigned. It is not installed automatically and may trigger a Windows publisher warning.
 
-Whisper Large v3 is now the default auto-subtitle model, with Tiny choices for faster transcription and smaller downloads. Large v3 downloads quantized weights of about 1.6 GB on first use. Whisper's ONNX runtime is included in the web and Windows builds, so transcription no longer needs the jsDelivr CDN. Models are downloaded from Hugging Face and cached locally. Subtitle decoding reads imported media directly from project storage; if a source is unavailable, the editor gives a relink/re-import instruction.
+Whisper Large v3 is the default auto-subtitle model, with Tiny options for CPU-only PCs and smaller downloads. Large v3 uses the full multilingual model with q4f16 weights, downloads about 1 GB once, and requires a WebGPU-capable GPU. Its ONNX export uses segment timestamps because it does not expose the cross-attention needed for word alignment. The Windows production worker was verified transcribing spoken audio with this model. Whisper's ONNX runtime is included in the web and Windows builds, so transcription no longer needs the jsDelivr CDN. Models are downloaded from Hugging Face and cached locally. Subtitle decoding reads imported media directly from project storage; if a source is unavailable, the editor gives a relink/re-import instruction.
 
 ## Development
 
