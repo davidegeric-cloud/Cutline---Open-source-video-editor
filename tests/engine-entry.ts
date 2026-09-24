@@ -972,6 +972,35 @@ export async function runEngineTests() {
       host.remove();
     }
   });
+  await check("Imported audio appears in Media and adds a real waveform clip", async () => {
+    await saveProject(persistable(newProject()));
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    try {
+      root.render(createElement(Editor));
+      for (let i = 0; i < 50 && !host.querySelector<HTMLInputElement>('input[type="file"][accept^="video/"]'); i++) await wait(20);
+      const input = host.querySelector<HTMLInputElement>('input[type="file"][accept^="video/"]');
+      assert(input, "Media import input is missing");
+      const transfer = new DataTransfer();
+      transfer.items.add(wav);
+      input!.files = transfer.files;
+      input!.dispatchEvent(new Event("change", { bubbles: true }));
+      for (let i = 0; i < 150 && !host.querySelector('[aria-label="Add test-tone.wav to timeline"]'); i++) await wait(20);
+      const card = host.querySelector<HTMLButtonElement>('[aria-label="Add test-tone.wav to timeline"]');
+      assert(card, "Imported audio is hidden from the Media tab");
+      card!.click();
+      for (let i = 0; i < 50 && !host.querySelector(".clip-audio .waveform rect"); i++) await wait(20);
+      assert(host.querySelectorAll(".clip-audio .waveform rect").length > 0, "Audio clip has no decoded waveform on the timeline");
+      const audioTab = [...host.querySelectorAll<HTMLButtonElement>(".library-nav button")].find((button) => button.textContent?.includes("Audio"));
+      assert(audioTab, "Audio library is missing");
+      audioTab!.click();
+      await wait(30);
+      assert(host.querySelector('[aria-label="Add test-tone.wav to timeline"]'), "Audio library lost the imported file");
+    } finally {
+      root.unmount(); host.remove();
+    }
+  });
   await check("Editor seeks beyond the last clip, stays there, and previews empty space", async () => {
     const fixture = newProject();
     fixture.texts = [makeText(0, { duration: 1, text: "Timeline fixture" })];

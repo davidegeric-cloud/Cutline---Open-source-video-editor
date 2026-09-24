@@ -119,7 +119,7 @@ export async function inspectFile(file: File): Promise<Asset> {
             await file.arrayBuffer(),
           );
           const data = buffer.getChannelData(0);
-          const bins = 160,
+          const bins = 320,
             step = Math.max(1, Math.floor(data.length / bins));
           asset.waveform = Array.from({ length: bins }, (_, i) => {
             let max = 0;

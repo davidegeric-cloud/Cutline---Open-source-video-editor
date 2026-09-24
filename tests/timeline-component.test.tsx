@@ -438,6 +438,15 @@ test("Timeline component: exact drag, cross-track move, trim, zoom, cancel, and 
     await event(document.querySelector(".timeline-clip")!, "dblclick", 200, 170);
     assert.ok([...document.querySelectorAll('[role="menuitem"]')].some((el) => el.textContent?.includes("Freeze frame")), "Imported video offers Freeze frame");
     await act(async () => (document.querySelector('[role="menuitem"]') as HTMLElement).dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    const audio = { id: "audio", name: "Sound", kind: "audio" as const, duration: 8, theme: "audio", sizeLabel: "8s", waveform: Array.from({ length: 320 }, (_, i) => i < 160 ? 0.1 : 0.8) };
+    const audioProject = newProject();
+    audioProject.assets = [audio];
+    audioProject.clips = [{ ...makeClip(audio), sourceStart: 4, sourceEnd: 8 }];
+    await act(async () => load(audioProject));
+    const waveform = document.querySelector<SVGElement>(".clip-audio .waveform")!;
+    assert.ok(waveform, "Audio clips show their waveform");
+    assert.equal(waveform.querySelectorAll("rect").length, 160, "A trimmed clip shows only its source waveform");
+    assert.ok(Number(waveform.querySelector("rect")?.getAttribute("height")) > 20, "Trimmed waveform starts at the selected source range");
     await act(async () => load(newProject()));
     geometry();
     const emptyRuler = button("Playhead");

@@ -808,11 +808,9 @@ export default function Editor() {
                       ? FILTERS.length
                       : library === "Text"
                         ? TEXT_PRESETS.length
-                        : project.assets.filter((a) =>
-                            library === "Audio"
-                              ? a.kind === "audio"
-                              : a.kind !== "audio",
-                          ).length}
+                        : library === "Audio"
+                          ? project.assets.filter((a) => a.kind === "audio").length
+                          : project.assets.length}
               </span>
             </span>
             {["Media", "Audio"].includes(library) && (
@@ -865,9 +863,7 @@ export default function Editor() {
                   {project.assets
                     .filter(
                       (a) =>
-                        (library === "Audio"
-                          ? a.kind === "audio"
-                          : a.kind !== "audio") && matches(a.name),
+                        (library !== "Audio" || a.kind === "audio") && matches(a.name),
                     )
                     .map((asset) => (
                       <div

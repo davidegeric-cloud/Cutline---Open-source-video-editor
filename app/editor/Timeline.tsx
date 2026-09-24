@@ -913,7 +913,12 @@ export function Timeline({
                         }}
                       >
                         {clip?.kind === "audio" && (
-                          <Waveform values={asset?.waveform} />
+                          <Waveform
+                            values={asset?.waveform}
+                            sourceStart={clip.sourceStart}
+                            sourceEnd={clip.sourceEnd}
+                            duration={asset?.duration}
+                          />
                         )}
                         <span className="clip-title">
                           {!clip ? (
@@ -1053,15 +1058,27 @@ export function Timeline({
     </section>
   );
 }
-function Waveform({ values }: { values?: number[] }) {
-  return values?.length ? (
+function Waveform({ values, sourceStart, sourceEnd, duration }: {
+  values?: number[];
+  sourceStart: number;
+  sourceEnd: number;
+  duration?: number;
+}) {
+  const first = values?.length && duration
+    ? Math.max(0, Math.min(values.length - 1, Math.floor(sourceStart / duration * values.length)))
+    : 0;
+  const last = values?.length && duration
+    ? Math.max(first + 1, Math.min(values.length, Math.ceil(sourceEnd / duration * values.length)))
+    : values?.length ?? 0;
+  const visible = values?.slice(first, last);
+  return visible?.length ? (
     <svg
       className="waveform"
-      viewBox={"0 0 " + values.length * 3 + " 40"}
+      viewBox={"0 0 " + visible.length * 3 + " 40"}
       preserveAspectRatio="none"
       aria-hidden="true"
     >
-      {values.map((v, i) => (
+      {visible.map((v, i) => (
         <rect
           key={i}
           x={i * 3}
