@@ -1,6 +1,6 @@
 # Cutline 0.3.12
 
-A free, device-local video editor for Windows and the web. No subscription, account in the PC app, or export watermark. The hosted development site uses its existing private Sites access policy. Source media is never uploaded by the editor.
+A free, device-local video editor for Windows and the web. No subscription, account in the PC app, or export watermark. The hosted development site uses its existing private Sites access policy. 
 
 ## Screenshots
 
