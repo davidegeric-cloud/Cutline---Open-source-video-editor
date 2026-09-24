@@ -163,6 +163,8 @@ export type TextClip = {
   kind: "text" | "caption" | "sticker";
   x: number;
   y: number;
+  /** Snap the visible text bounds to the canvas center while dragging. */
+  snapToGuides?: boolean;
   rotation: number;
   fontSize: number;
   fontFamily: string;
@@ -387,6 +389,7 @@ export function makeText(start = 0, patch: Partial<TextClip> = {}): TextClip {
     kind: "text",
     x: 0.5,
     y: 0.5,
+    snapToGuides: true,
     rotation: 0,
     fontSize: 72,
     fontFamily: "Manrope Variable",

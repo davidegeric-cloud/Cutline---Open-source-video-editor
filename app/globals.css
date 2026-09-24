@@ -1060,6 +1060,30 @@ summary::-webkit-details-marker {
 .composition-guides b:last-child {
   top: 66.666%;
 }
+.alignment-snap-guides {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.alignment-snap-guides i,
+.alignment-snap-guides b {
+  position: absolute;
+  display: block;
+  filter: drop-shadow(0 0 3px #121820);
+}
+.alignment-snap-guides i {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  border-left: 1px solid #7bcfac;
+}
+.alignment-snap-guides b {
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px solid #7bcfac;
+}
 .preview-loading,
 .preview-empty {
   position: absolute;

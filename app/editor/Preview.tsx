@@ -61,6 +61,7 @@ export function Preview({
     pool = useRef<MediaPool | null>(null),
     renderer = useRef<Renderer | null>(null);
   const [bound, setBound] = useState<Bounds | null>(null),
+    [snapGuides, setSnapGuides] = useState({ x: false, y: false }),
     [loading, setLoading] = useState(false),
     [muted, setMuted] = useState(false),
     [guides, setGuides] = useState(false),
@@ -133,6 +134,7 @@ export function Preview({
       x: number;
       y: number;
       project: Project;
+      bound: Bounds;
     } | null>(null);
   useEffect(() => {
     latest.current = { project, selection, time, playing, muted };
@@ -280,6 +282,7 @@ export function Preview({
     select({ kind: hit.kind, id: hit.id });
     dispatch({ type: "begin" });
     e.currentTarget.setPointerCapture(e.pointerId);
+    setSnapGuides({ x: false, y: false });
     drag.current = {
       id: hit.id,
       kind: hit.kind,
@@ -287,6 +290,7 @@ export function Preview({
       x: e.clientX,
       y: e.clientY,
       project,
+      bound: hit,
     };
   }
   function move(e: PointerEvent<HTMLElement>) {
@@ -300,6 +304,16 @@ export function Preview({
       fn: (p) => {
         if (d.kind === "text") {
           const original = d.project.texts.find((t) => t.id === d.id)!;
+          const snapping = d.mode === "move" && original.snapToGuides !== false;
+          const offsetX = d.bound.x / canvas.current!.width - original.x;
+          const offsetY = d.bound.y / canvas.current!.height - original.y;
+          let x = clamp(original.x + dx, -0.5, 1.5);
+          let y = clamp(original.y + dy, -0.5, 1.5);
+          const snapX = snapping && Math.abs((x + offsetX - 0.5) * rect.width) <= 12;
+          const snapY = snapping && Math.abs((y + offsetY - 0.5) * rect.height) <= 12;
+          if (snapX) x = 0.5 - offsetX;
+          if (snapY) y = 0.5 - offsetY;
+          setSnapGuides({ x: snapX, y: snapY });
           return {
             ...p,
             texts: p.texts.map((t) =>
@@ -309,8 +323,8 @@ export function Preview({
                     ...t,
                     ...(d.mode === "move"
                       ? {
-                          x: clamp(original.x + dx, -0.5, 1.5),
-                          y: clamp(original.y + dy, -0.5, 1.5),
+                          x: clamp(x, -0.5, 1.5),
+                          y: clamp(y, -0.5, 1.5),
                         }
                       : {
                           fontSize: clamp(
@@ -367,6 +381,7 @@ export function Preview({
   const finish = () => {
     if (drag.current) {
       drag.current = null;
+      setSnapGuides({ x: false, y: false });
       dispatch({ type: "commit" });
     }
   };
@@ -422,6 +437,7 @@ export function Preview({
           onPointerUp={finish}
           onPointerCancel={() => {
             drag.current = null;
+            setSnapGuides({ x: false, y: false });
             dispatch({ type: "cancel" });
           }}
         >
@@ -438,6 +454,12 @@ export function Preview({
               <i />
               <b />
               <b />
+            </div>
+          )}
+          {(snapGuides.x || snapGuides.y) && (
+            <div className="alignment-snap-guides" aria-hidden="true">
+              {snapGuides.x && <i />}
+              {snapGuides.y && <b />}
             </div>
           )}
           {bound && !playing && (

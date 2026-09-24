@@ -137,6 +137,21 @@ test("all text styles insert New Text and retain their distinct styling", () => 
     new Set(TEXT_PRESETS.map((p) => JSON.stringify(p.style))).size >= 12,
   );
 });
+test("text alignment snapping defaults on and survives project migration", () => {
+  assert.equal(makeText().snapToGuides, true);
+  const legacy = makeText();
+  delete legacy.snapToGuides;
+  const enabled = migrateProject(
+    { ...newProject(), texts: [legacy] },
+    [video],
+  );
+  assert.equal(enabled.texts[0].snapToGuides, true);
+  const disabled = migrateProject(
+    { ...newProject(), texts: [makeText(0, { snapToGuides: false })] },
+    [video],
+  );
+  assert.equal(disabled.texts[0].snapToGuides, false);
+});
 test("entrance and exit presets have independent bounded timelines", () => {
   for (const name of ANIMATIONS.filter((n) => n !== "None")) {
     const t = makeText(2, {

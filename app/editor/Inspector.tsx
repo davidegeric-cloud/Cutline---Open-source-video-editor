@@ -543,6 +543,11 @@ export function Inspector({
                   keyframe={(name, value) => keyButton(text, name, value)}
                 />
                 <Section title="Position & timing">
+                  <Toggle
+                    label="Snap to center guides"
+                    value={text.snapToGuides !== false}
+                    onChange={(v) => updateText({ snapToGuides: v })}
+                  />
                   <div className="field-grid">
                     <NumberField
                       label="X (%)"
