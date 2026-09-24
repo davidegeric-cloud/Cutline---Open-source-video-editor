@@ -428,6 +428,27 @@ export class Renderer {
           else ctx.fillRect(0, 0, w, h);
           break;
         }
+        case "Wavy": {
+          // Rebuild the isolated clip layer as short horizontal slices. A
+          // traveling sine offset gives the footage a smooth, animated wave
+          // without touching the layers behind it (including for text).
+          this.copy();
+          ctx.globalCompositeOperation = "source-over";
+          ctx.globalAlpha = 1;
+          ctx.clearRect(0, 0, w, h);
+          const bands = Math.min(240, h);
+          const bandHeight = h / bands;
+          const amplitude = w * 0.035 * a;
+          const phase = time * Math.PI * 1.5;
+          for (let band = 0; band < bands; band++) {
+            const y = band * bandHeight;
+            const height = Math.min(bandHeight + 0.5, h - y);
+            const vertical = (y + height / 2) / h;
+            const offset = Math.sin(vertical * Math.PI * 6 + phase) * amplitude;
+            ctx.drawImage(this.temp, 0, y, w, height, offset, y, w, height);
+          }
+          break;
+        }
       }
       ctx.restore();
     }

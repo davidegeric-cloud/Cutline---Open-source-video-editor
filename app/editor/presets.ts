@@ -114,6 +114,12 @@ export const EFFECTS: {
     icon: "◇",
     color: "#95a8e0",
   },
+  {
+    name: "Wavy",
+    description: "Flowing horizontal wave distortion",
+    icon: "〰",
+    color: "#70c8d6",
+  },
 ];
 export const TRANSITIONS: { name: TransitionName; icon: string }[] = [
   ["None", "—"],

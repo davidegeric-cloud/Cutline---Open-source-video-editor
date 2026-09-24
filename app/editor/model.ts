@@ -12,7 +12,8 @@ export type EffectName =
   | "Shake"
   | "Pulse"
   | "Letterbox"
-  | "Prism";
+  | "Prism"
+  | "Wavy";
 export type TransitionName =
   | "None"
   | "Dissolve"
