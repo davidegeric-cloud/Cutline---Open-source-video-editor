@@ -155,7 +155,8 @@ export function Timeline({
     setViewport((old) => old.left === next.left && old.width === next.width ? old : next);
   }, []);
   useEffect(() => {
-    setWorkspaceEnd((end) => Math.max(end, timelineEnd));
+    const frame = requestAnimationFrame(() => setWorkspaceEnd((end) => Math.max(end, timelineEnd)));
+    return () => cancelAnimationFrame(frame);
   }, [timelineEnd]);
   useEffect(() => {
     syncViewport();

@@ -308,4 +308,34 @@ export const TEXT_PRESETS: {
       shadowBlur: 0,
     },
   },
+  {
+    name: "Aurora gradient",
+    sample: "New Text",
+    style: {
+      fontSize: 86,
+      fontWeight: 800,
+      fillMode: "linear",
+      gradientAngle: 20,
+      gradientStops: [
+        { id: "start", position: 0, color: "#a8ffe2" },
+        { id: "middle", position: 0.5, color: "#78b8ff" },
+        { id: "end", position: 1, color: "#d7a2ff" },
+      ],
+    },
+  },
+  {
+    name: "Sunset gradient",
+    sample: "New Text",
+    style: {
+      fontSize: 86,
+      fontWeight: 800,
+      fillMode: "linear",
+      gradientAngle: 45,
+      gradientStops: [
+        { id: "start", position: 0, color: "#ffe08e" },
+        { id: "middle", position: 0.5, color: "#fc8b8a" },
+        { id: "end", position: 1, color: "#b885ff" },
+      ],
+    },
+  },
 ];

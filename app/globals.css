@@ -1342,6 +1342,34 @@ summary::-webkit-details-marker {
   border: 0;
   border-radius: 3px;
 }
+.gradient-fill-label { margin: 2px 0 9px; color: #a9b5c5; font-size: 13px; }
+.fill-mode-switch { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: 3px; border: 1px solid #34404b; border-radius: 8px; background: #111820; }
+.fill-mode-switch button { min-width: 0; padding: 7px 3px; border-radius: 5px; color: #a6b7c7; font-size: 12px; }
+.fill-mode-switch button:hover { color: #e7fff5; background: #253b36; }
+.fill-mode-switch button.active { color: #9ff5cd; background: #254337; box-shadow: inset 0 0 0 1px #43735b; }
+.gradient-ramp { height: 39px; margin: 15px 0 5px; border: 1px solid #506071; border-radius: 7px; box-shadow: inset 0 0 0 1px #0c1118a0; }
+.gradient-help { margin-bottom: 12px; }
+.gradient-presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 11px 0 18px; }
+.gradient-presets button { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 6px; border: 1px solid #354250; border-radius: 6px; color: #c6d2dd; font-size: 12px; text-align: left; }
+.gradient-presets button:hover { border-color: #7bccaa; background: #253a35; }
+.gradient-presets button span { display: block; width: 23px; height: 23px; flex: 0 0 auto; border-radius: 4px; border: 1px solid #ffffff4a; }
+.gradient-stop-heading { display: flex; align-items: center; justify-content: space-between; gap: 5px; margin: 19px 0 8px; color: #c7d6e0; font-size: 13px; }
+.gradient-stop-heading > div { display: flex; gap: 4px; }
+.gradient-stop-heading button { display: inline-flex; align-items: center; gap: 3px; padding: 4px 6px; border: 1px solid #354250; border-radius: 5px; color: #b4c6d4; font-size: 12px; }
+.gradient-stop-heading button:hover:not(:disabled) { border-color: #75bf9a; color: #abf4cc; }
+.gradient-stop-heading button:disabled, .gradient-stop-title button:disabled { opacity: .35; cursor: not-allowed; }
+.gradient-stops { display: grid; gap: 7px; }
+.gradient-stop-row { padding: 8px; border: 1px solid #303c47; border-radius: 7px; background: #141c24; }
+.gradient-stop-title { display: flex; align-items: center; justify-content: space-between; color: #d1e0e8; font-size: 12px; font-weight: 700; margin-bottom: 7px; }
+.gradient-stop-title button { display: grid; place-items: center; width: 23px; height: 23px; color: #91a5b5; border-radius: 4px; }
+.gradient-stop-title button:hover:not(:disabled) { color: #ffb9b9; background: #4e292c; }
+.gradient-stop-fields { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); gap: 7px; align-items: end; }
+.gradient-stop-fields .field { margin: 0; font-size: 12px; }
+.gradient-stop-fields .field-label { font-size: 12px; gap: 2px; white-space: nowrap; }
+.gradient-stop-fields .property-keyframe { width: 15px; height: 15px; margin-left: 1px; }
+.gradient-stop-color > div { display: flex; gap: 4px; margin-top: 6px; height: 34px; }
+.gradient-stop-color input[type="color"] { width: 31px; height: 34px; padding: 2px; flex: 0 0 auto; border: 1px solid #3b4a56; border-radius: 5px; cursor: pointer; }
+.gradient-stop-color input[type="text"] { width: 100%; min-width: 0; padding: 4px; border: 1px solid #3b4a56; border-radius: 5px; background: #0e151d; color: #d9e7e8; font: 12px var(--mono); }
 .text-format {
   display: flex;
   align-items: center;

@@ -3,6 +3,7 @@ import {
   SlidersHorizontal,
   RotateCcw,
   Diamond,
+  Plus,
   X,
   AlignLeft,
   AlignCenter,
@@ -31,10 +32,12 @@ import {
   clipDuration,
   clock,
   interpolatedTransform,
+  normalizeGradientStops,
   setPropertyKeyframe,
   togglePropertyKeyframe,
   transitionSource,
   type Clip,
+  type GradientStop,
   type Project,
   type Selection,
   type TextClip,
@@ -78,9 +81,12 @@ export function Inspector({
       : undefined;
   const clip = sourceClip ? animatedItem(sourceClip, time) : undefined;
   const text = sourceText ? animatedItem(sourceText, time) : undefined;
+  const effectsTab = text ? "Effects" : "Basic";
   useEffect(() => {
-    if (focusEffects) setTab(text ? "Effects" : "Basic");
-  }, [focusEffects, text?.id]);
+    if (!focusEffects) return;
+    const frame = requestAnimationFrame(() => setTab(effectsTab));
+    return () => cancelAnimationFrame(frame);
+  }, [focusEffects, effectsTab, selection?.id]);
   const updateClip = (
     patch: Partial<Clip>,
     group = Object.keys(patch).join(),
@@ -103,6 +109,32 @@ export function Inspector({
       }),
       text?.id + ":" + group,
     );
+  const updateGradientStop = (id: string, patch: Partial<Pick<GradientStop, "color" | "position">>) => {
+    if (!text) return;
+    edit((p) => ({ ...p, texts: p.texts.map((item) => {
+      if (item.id !== text.id) return item;
+      let next = { ...item };
+      const stopPatch: typeof patch = {};
+      for (const [field, value] of Object.entries(patch)) {
+        const key = `gradientStop:${id}:${field}`;
+        if (item.propertyKeyframes?.[key]?.length)
+          next = setPropertyKeyframe(next, key, time - item.start, value, p.fps);
+        else (stopPatch as Record<string, unknown>)[field] = value;
+      }
+      if (Object.keys(stopPatch).length)
+        next.gradientStops = item.gradientStops.map((stop) => stop.id === id ? { ...stop, ...stopPatch } : stop);
+      return next;
+    }) }), `${text.id}:gradientStop:${id}:${Object.keys(patch).join()}`);
+  };
+  const replaceGradientStops = (stops: GradientStop[]) => {
+    if (!text) return;
+    edit((p) => ({ ...p, texts: p.texts.map((item) => item.id === text.id ? {
+      ...item,
+      gradientStops: normalizeGradientStops(stops),
+      propertyKeyframes: Object.fromEntries(Object.entries(item.propertyKeyframes ?? {})
+        .filter(([name]) => !name.startsWith("gradientStop:"))),
+    } : item) }), `${text.id}:gradientStops`);
+  };
   const transform = clip
     ? interpolatedTransform(clip, time - clip.start)
     : null;
@@ -408,13 +440,14 @@ export function Inspector({
                       )}
                     </div>
                   </div>
-                  <Color
-                    label="Text color"
-                    keyframe={tk("color", text.color)}
-                    value={text.color}
-                    onChange={(v) => updateText({ color: v })}
-                  />
                 </Section>
+                <TextFillControls
+                  text={text}
+                  onChange={updateText}
+                  onStopChange={updateGradientStop}
+                  onReplaceStops={replaceGradientStops}
+                  keyframe={(name, value) => keyButton(text, name, value)}
+                />
                 <Section title="Position & timing">
                   <div className="field-grid">
                     <NumberField
@@ -1062,6 +1095,122 @@ export function Inspector({
       )}
     </aside>
   );
+}
+const GRADIENT_PALETTES = [
+  { name: "Mint", colors: ["#ffffff", "#80efc1"], angle: 0 },
+  { name: "Sunset", colors: ["#ffd37d", "#f06aa6", "#8b6dff"], angle: 30 },
+  { name: "Ocean", colors: ["#9cefff", "#4d87e7", "#9485f9"], angle: 0 },
+  { name: "Gold", colors: ["#fff8ce", "#f5bd62", "#c67830"], angle: 90 },
+] as const;
+function TextFillControls({ text, onChange, onStopChange, onReplaceStops, keyframe }: {
+  text: TextClip;
+  onChange: (patch: Partial<TextClip>, group?: string) => void;
+  onStopChange: (id: string, patch: Partial<Pick<GradientStop, "color" | "position">>) => void;
+  onReplaceStops: (stops: GradientStop[]) => void;
+  keyframe: (name: string, value: number | string | boolean) => ReactNode;
+}) {
+  const stops = normalizeGradientStops(text.gradientStops);
+  const addStop = () => {
+    if (stops.length >= 8) return;
+    const gaps = stops.slice(0, -1).map((stop, index) => ({
+      index, gap: stops[index + 1].position - stop.position,
+    })).sort((a, b) => b.gap - a.gap);
+    const index = gaps[0]?.index ?? 0;
+    const first = stops[index], second = stops[index + 1];
+    const midpoint = (first.position + second.position) / 2;
+    const color = "#" + [1, 3, 5].map((offset) =>
+      Math.round((parseInt(first.color.slice(offset, offset + 2), 16) +
+        parseInt(second.color.slice(offset, offset + 2), 16)) / 2)
+        .toString(16).padStart(2, "0")).join("");
+    onReplaceStops([...stops, { id: crypto.randomUUID(), position: midpoint, color }]);
+  };
+  const ramp = `linear-gradient(90deg, ${stops.map((stop) =>
+    `${stop.color} ${Math.round(stop.position * 100)}%`).join(", ")})`;
+  return <Section title="Text fill">
+    <div className="field-label gradient-fill-label">Fill type {keyframe("fillMode", text.fillMode)}</div>
+    <div className="fill-mode-switch" role="group" aria-label="Text fill type">
+      {(["solid", "linear", "radial"] as const).map((mode) =>
+        <button type="button" key={mode} className={text.fillMode === mode ? "active" : ""}
+          aria-pressed={text.fillMode === mode} onClick={() => onChange({ fillMode: mode })}>
+          {mode === "solid" ? "Solid" : mode === "linear" ? "Linear" : "Radial"}
+        </button>)}
+    </div>
+    {text.fillMode === "solid" ? <Color label="Text color" keyframe={keyframe("color", text.color)}
+      value={text.color} onChange={(color) => onChange({ color })} /> : <>
+      <div className="gradient-ramp" role="img" aria-label="Gradient color ramp" style={{ background: ramp }} />
+      <p className="field-note gradient-help">Add up to eight stops. Colors blend across the whole text block, including multiple lines.</p>
+      <div className="gradient-presets" aria-label="Gradient palettes">
+        {GRADIENT_PALETTES.map((palette) => <button type="button" key={palette.name}
+          onClick={() => {
+            onReplaceStops(palette.colors.map((color, index) => ({
+              id: `palette-${index}`, position: index / (palette.colors.length - 1), color,
+            })));
+            onChange({ gradientAngle: palette.angle });
+          }}>
+          <span style={{ background: `linear-gradient(90deg, ${palette.colors.join(", ")})` }} />{palette.name}
+        </button>)}
+      </div>
+      {text.fillMode === "linear" ? <Range label="Angle" value={text.gradientAngle} min={0} max={360}
+        suffix="°" keyframe={keyframe("gradientAngle", text.gradientAngle)}
+        onChange={(gradientAngle) => onChange({ gradientAngle })} /> : <>
+        <Range label="Center X" value={text.gradientCenterX * 100} min={0} max={100} suffix="%"
+          keyframe={keyframe("gradientCenterX", text.gradientCenterX)}
+          onChange={(value) => onChange({ gradientCenterX: value / 100 })} />
+        <Range label="Center Y" value={text.gradientCenterY * 100} min={0} max={100} suffix="%"
+          keyframe={keyframe("gradientCenterY", text.gradientCenterY)}
+          onChange={(value) => onChange({ gradientCenterY: value / 100 })} />
+        <Range label="Radius" value={text.gradientRadius * 100} min={10} max={200} suffix="%"
+          keyframe={keyframe("gradientRadius", text.gradientRadius)}
+          onChange={(value) => onChange({ gradientRadius: value / 100 })} />
+      </>}
+      <div className="gradient-stop-heading"><strong>Color stops</strong><div>
+        <button type="button" onClick={() => onReplaceStops(stops.map((stop) => ({
+          ...stop, position: 1 - stop.position,
+        })))} title="Reverse gradient colors">Reverse</button>
+        <button type="button" onClick={addStop} disabled={stops.length >= 8} title="Add color stop">
+          <Plus size={13} /> Add
+        </button>
+      </div></div>
+      <div className="gradient-stops">{stops.map((stop, index) => <GradientStopRow key={stop.id}
+        stop={stop} index={index} removable={stops.length > 2}
+        keyframe={keyframe} onChange={(patch) => onStopChange(stop.id, patch)}
+        onRemove={() => onReplaceStops(stops.filter((item) => item.id !== stop.id))} />)}</div>
+    </>}
+  </Section>;
+}
+function GradientStopRow({ stop, index, removable, keyframe, onChange, onRemove }: {
+  stop: GradientStop;
+  index: number;
+  removable: boolean;
+  keyframe: (name: string, value: number | string | boolean) => ReactNode;
+  onChange: (patch: Partial<Pick<GradientStop, "color" | "position">>) => void;
+  onRemove: () => void;
+}) {
+  const [edit, setEdit] = useState<{ source: string; value: string } | null>(null);
+  const draft = edit?.source === stop.color ? edit.value : stop.color.toUpperCase();
+  const commit = () => {
+    const value = draft.startsWith("#") ? draft : `#${draft}`;
+    if (/^#[0-9a-f]{6}$/i.test(value)) onChange({ color: value.toLowerCase() });
+    setEdit(null);
+  };
+  return <div className="gradient-stop-row">
+    <div className="gradient-stop-title"><span>Stop {index + 1}</span>
+      <button type="button" aria-label={`Remove stop ${index + 1}`} title="Remove stop"
+        disabled={!removable} onClick={onRemove}><Trash2 size={13} /></button></div>
+    <div className="gradient-stop-fields">
+      <div className="gradient-stop-color">
+        <span className="field-label">Color {keyframe(`gradientStop:${stop.id}:color`, stop.color)}</span>
+        <div><input type="color" aria-label={`Stop ${index + 1} color`} value={stop.color}
+          onChange={(event) => onChange({ color: event.target.value })} />
+          <input type="text" aria-label={`Stop ${index + 1} hex color`} value={draft} maxLength={7}
+            onChange={(event) => setEdit({ source: stop.color, value: event.target.value })} onBlur={commit}
+            onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} /></div>
+      </div>
+      <NumberField label="Position (%)" value={stop.position * 100} min={0} max={100} step={1}
+        keyframe={keyframe(`gradientStop:${stop.id}:position`, stop.position)}
+        onChange={(value) => onChange({ position: value / 100 })} />
+    </div>
+  </div>;
 }
 function AnimationTuner({ name, options, onChange }: {
   name: TextClip["animation"];

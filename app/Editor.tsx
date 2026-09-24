@@ -958,6 +958,11 @@ export default function Editor() {
                           fontWeight: p.style.fontWeight ?? 800,
                           fontStyle: p.style.italic ? "italic" : undefined,
                           color: p.style.color ?? "#fff",
+                          ...(p.style.fillMode && p.style.fillMode !== "solid" ? {
+                            backgroundImage: `linear-gradient(${(p.style.gradientAngle ?? 0) + 90}deg, ${(p.style.gradientStops ?? []).map((stop) => `${stop.color} ${stop.position * 100}%`).join(", ")})`,
+                            backgroundClip: "text",
+                            WebkitTextFillColor: "transparent",
+                          } : {}),
                           textShadow:
                             p.name === "Neon"
                               ? "0 0 12px #35ffb6"

@@ -206,6 +206,33 @@ export async function runEngineTests() {
       }
     },
   );
+  await check("Linear and radial text gradients render real pixels consistently", () => {
+    const text = makeText(0, {
+      text: "GRADIENT", fontSize: 300, fontWeight: 900, track: 2,
+      shadowBlur: 0, shadowOffset: 0,
+      gradientStops: [
+        { id: "a", position: 0, color: "#ff3322" },
+        { id: "b", position: 0.45, color: "#facc33" },
+        { id: "c", position: 1, color: "#226aff" },
+      ],
+    });
+    const project = { ...p, clips: [], texts: [text] };
+    const fill = (patch: Partial<typeof text>) => {
+      renderer.draw(canvas, { ...project, texts: [{ ...text, ...patch }] }, 1, new Map());
+      return hash(canvas);
+    };
+    const solid = fill({ fillMode: "solid", color: "#ffffff" });
+    const horizontal = fill({ fillMode: "linear", gradientAngle: 0 });
+    const vertical = fill({ fillMode: "linear", gradientAngle: 90 });
+    const radial = fill({ fillMode: "radial", gradientCenterX: 0.2, gradientCenterY: 0.7, gradientRadius: 0.5 });
+    assert(horizontal !== solid, "Linear fill is indistinguishable from a solid color");
+    assert(vertical !== horizontal, "Changing the gradient angle has no effect");
+    assert(radial !== horizontal, "Radial fill is indistinguishable from linear fill");
+    const exportFrame = testCanvas();
+    exportFrame.width = canvas.width; exportFrame.height = canvas.height;
+    new Renderer().draw(exportFrame, { ...project, texts: [{ ...text, fillMode: "radial", gradientCenterX: 0.2, gradientCenterY: 0.7, gradientRadius: 0.5 }] }, 1, new Map());
+    assert(hash(exportFrame) === radial, "Gradient pixels differ between preview and a fresh export renderer");
+  });
   await check(
     "All entrance and exit text presets animate real pixels and settle between phases",
     () => {
@@ -595,6 +622,13 @@ export async function runEngineTests() {
       animationDuration: 0.25,
       exitAnimation: "Spin",
       exitAnimationDuration: 0.35,
+      fillMode: "linear",
+      gradientAngle: 35,
+      gradientStops: [
+        { id: "first", position: 0, color: "#ffe08e" },
+        { id: "middle", position: 0.5, color: "#fc8b8a" },
+        { id: "last", position: 1, color: "#b885ff" },
+      ],
       effects: [{ name: "Glow", amount: 70 }],
     }),
   ];
@@ -794,6 +828,55 @@ export async function runEngineTests() {
   });
   const importedAudio = audio as Asset | null;
   if (importedAudio?.url) URL.revokeObjectURL(importedAudio.url);
+  await check("Gradient inspector switches fill modes, palettes, stops and keyframes", async () => {
+    const fixture = newProject();
+    fixture.texts = [makeText(0, { text: "Gradient title" })];
+    const host = document.createElement("div"); document.body.appendChild(host);
+    const root = createRoot(host);
+    let observed = fixture;
+    function Harness() {
+      const [project, setProject] = useState(fixture);
+      observed = project;
+      return createElement(Inspector, { project, selection: { kind: "text", id: fixture.texts[0].id },
+        time: 1, clear: () => {}, edit: (fn) => setProject((p) => fn(p)) });
+    }
+    const click = (selector: string, label: string) => {
+      const button = [...host.querySelectorAll<HTMLButtonElement>(selector)]
+        .find((item) => item.textContent?.trim() === label);
+      assert(button, `Missing ${label} control`);
+      button!.click();
+    };
+    try {
+      root.render(createElement(Harness));
+      for (let i = 0; i < 30 && !host.querySelector(".fill-mode-switch"); i++) await wait(20);
+      click(".fill-mode-switch button", "Linear"); await wait(20);
+      assert(observed.texts[0].fillMode === "linear", "Linear fill was not stored");
+      click(".gradient-stop-heading button", "Add"); await wait(20);
+      assert(observed.texts[0].gradientStops.length === 3, "Color stop was not added");
+      click(".gradient-presets button", "Sunset"); await wait(20);
+      assert(observed.texts[0].gradientStops[1].color === "#f06aa6", "Palette was not applied");
+      const hex = host.querySelector<HTMLInputElement>('[aria-label="Stop 1 hex color"]')!;
+      hex.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(hex, "#34A7CF");
+      hex.dispatchEvent(new Event("input", { bubbles: true }));
+      await wait(20); hex.dispatchEvent(new FocusEvent("focusout", { bubbles: true })); await wait(20);
+      assert(observed.texts[0].gradientStops[0].color === "#34a7cf", `Exact hex edit was not stored: ${observed.texts[0].gradientStops[0].color} / ${hex.value}`);
+      const position = host.querySelector<HTMLInputElement>('.gradient-stop-row:nth-child(2) input[type="number"]')!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(position, "63");
+      position.dispatchEvent(new Event("input", { bubbles: true })); await wait(20);
+      assert(Math.abs(observed.texts[0].gradientStops[1].position - 0.63) < 0.001, "Color stop position was not stored");
+      const keyframe = host.querySelector<HTMLButtonElement>('[aria-label="Add gradientAngle keyframe"]');
+      assert(keyframe, "Gradient angle has no keyframe diamond");
+      keyframe!.click(); await wait(20);
+      assert(observed.texts[0].propertyKeyframes?.gradientAngle?.length === 1, "Gradient angle keyframe was not stored");
+      click(".fill-mode-switch button", "Radial"); await wait(20);
+      assert(observed.texts[0].fillMode === "radial", "Radial fill was not stored");
+      assert(host.querySelector<HTMLInputElement>('[aria-label="Radius"]'), "Radial radius control is missing");
+      assert(host.querySelector<HTMLInputElement>('[aria-label="Stop 1 hex color"]'), "Hex color entry is missing");
+    } finally {
+      root.unmount(); host.remove();
+    }
+  });
   await check("Animation inspector saves a tuned text exit and reapplies it to video", async () => {
     localStorage.removeItem("cutline:custom-animation-presets:v1");
     const fixture = newProject();

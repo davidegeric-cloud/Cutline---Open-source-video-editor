@@ -86,6 +86,26 @@ export type Keyframe = {
 };
 export type PropertyKeyframe = { time: number; value: number | string | boolean };
 export type PropertyKeyframes = Record<string, PropertyKeyframe[]>;
+export type TextFillMode = "solid" | "linear" | "radial";
+export type GradientStop = { id: string; position: number; color: string };
+export const DEFAULT_GRADIENT_STOPS: GradientStop[] = [
+  { id: "start", position: 0, color: "#ffffff" },
+  { id: "end", position: 1, color: "#80efc1" },
+];
+export function normalizeGradientStops(value: unknown): GradientStop[] {
+  if (!Array.isArray(value)) return DEFAULT_GRADIENT_STOPS.map((stop) => ({ ...stop }));
+  const seen = new Set<string>();
+  const stops = value.slice(0, 8).flatMap((raw, index) => {
+    if (!raw || typeof raw !== "object") return [];
+    const stop = raw as Partial<GradientStop>;
+    if (typeof stop.color !== "string" || !/^#[0-9a-f]{6}$/i.test(stop.color)) return [];
+    let id = typeof stop.id === "string" && stop.id ? stop.id : `stop-${index}`;
+    if (seen.has(id)) id = `${id}-${index}`;
+    seen.add(id);
+    return [{ id, color: stop.color, position: clamp(Number(stop.position), 0, 1) }];
+  }).sort((a, b) => a.position - b.position);
+  return stops.length >= 2 ? stops : DEFAULT_GRADIENT_STOPS.map((stop) => ({ ...stop }));
+}
 export type Clip = {
   id: string;
   assetId: string;
@@ -148,6 +168,12 @@ export type TextClip = {
   fontWeight: number;
   italic: boolean;
   color: string;
+  fillMode: TextFillMode;
+  gradientAngle: number;
+  gradientCenterX: number;
+  gradientCenterY: number;
+  gradientRadius: number;
+  gradientStops: GradientStop[];
   align: "left" | "center" | "right";
   lineHeight: number;
   letterSpacing: number;
@@ -366,6 +392,12 @@ export function makeText(start = 0, patch: Partial<TextClip> = {}): TextClip {
     fontWeight: 700,
     italic: false,
     color: "#ffffff",
+    fillMode: "solid",
+    gradientAngle: 0,
+    gradientCenterX: 0.5,
+    gradientCenterY: 0.5,
+    gradientRadius: 0.7,
+    gradientStops: DEFAULT_GRADIENT_STOPS.map((stop) => ({ ...stop })),
     align: "center",
     lineHeight: 1.2,
     letterSpacing: 0,
@@ -663,6 +695,13 @@ export function animatedItem<T extends Clip | TextClip>(item: T, timelineTime: n
     ...effect,
     amount: Number(propertyValue(item, `effect:${effect.name}`, local) ?? effect.amount),
   }));
+  if ("gradientStops" in item) {
+    (result as TextClip).gradientStops = item.gradientStops.map((stop) => ({
+      ...stop,
+      color: String(propertyValue(item, `gradientStop:${stop.id}:color`, local) ?? stop.color),
+      position: Number(propertyValue(item, `gradientStop:${stop.id}:position`, local) ?? stop.position),
+    }));
+  }
   return result;
 }
 export function togglePropertyKeyframe<T extends Clip | TextClip>(item: T, name: string, localTime: number, value: number | string | boolean, fps = FPS): T {
@@ -784,6 +823,12 @@ export function migrateProject(raw: unknown, restoredAssets: Asset[]): Project {
       t.duration = Math.max(MIN_DURATION, t.duration);
       t.track = Math.floor(clamp(Number(t.track), 0, 9999));
       t.effects = Array.isArray(t.effects) ? t.effects : [];
+      t.fillMode = t.fillMode === "linear" || t.fillMode === "radial" ? t.fillMode : "solid";
+      t.gradientAngle = clamp(Number(t.gradientAngle), 0, 360);
+      t.gradientCenterX = clamp(Number(t.gradientCenterX), 0, 1);
+      t.gradientCenterY = clamp(Number(t.gradientCenterY), 0, 1);
+      t.gradientRadius = clamp(Number(t.gradientRadius), 0.1, 2);
+      t.gradientStops = normalizeGradientStops(t.gradientStops);
       t.propertyKeyframes = t.propertyKeyframes && typeof t.propertyKeyframes === "object" ? t.propertyKeyframes : {};
       // Preserve the old exit-fade setting when opening older projects/backups.
       if (typeof old.exitAnimation !== "string" && t.fadeOut > 0) {

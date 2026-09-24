@@ -4,6 +4,7 @@ import {
   clipDuration,
   endOf,
   interpolatedTransform,
+  normalizeGradientStops,
   trackKey,
   transitionWindow,
   type Asset,
@@ -544,7 +545,28 @@ export class Renderer {
       ctx.fill();
     }
     ctx.globalAlpha = alpha;
-    ctx.fillStyle = t.color;
+    if (t.fillMode === "linear" || t.fillMode === "radial") {
+      const centerX = left + tw * clamp(t.gradientCenterX ?? 0.5, 0, 1);
+      const centerY = -th / 2 + th * clamp(t.gradientCenterY ?? 0.5, 0, 1);
+      let gradient: CanvasGradient;
+      if (t.fillMode === "radial") {
+        gradient = ctx.createRadialGradient(
+          centerX, centerY, 0,
+          centerX, centerY, Math.max(1, Math.max(tw, th) * clamp(t.gradientRadius ?? 0.7, 0.1, 2)),
+        );
+      } else {
+        const angle = rad(t.gradientAngle ?? 0);
+        const dx = Math.cos(angle), dy = Math.sin(angle);
+        const extent = Math.abs(dx) * tw + Math.abs(dy) * th;
+        gradient = ctx.createLinearGradient(
+          left + tw / 2 - dx * extent / 2, -dy * extent / 2,
+          left + tw / 2 + dx * extent / 2, dy * extent / 2,
+        );
+      }
+      for (const stop of normalizeGradientStops(t.gradientStops))
+        gradient.addColorStop(stop.position, stop.color);
+      ctx.fillStyle = gradient;
+    } else ctx.fillStyle = t.color;
     ctx.strokeStyle = t.strokeColor;
     ctx.lineWidth = t.strokeWidth * unit * 2;
     ctx.shadowColor = t.shadowColor;

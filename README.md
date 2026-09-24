@@ -1,4 +1,4 @@
-# Cutline 0.3.12
+# Cutline 0.3.13
 
 A free, device-local video editor for Windows and the web. No subscription, account in the PC app, or export watermark. 
 
@@ -14,6 +14,10 @@ These are captures of the Windows editor with a synthetic sample project; no per
 
 *Text presets and editable styling controls.*
 
+![Cutline text gradients with adjustable color stops](docs/screenshots/text-gradients.png)
+
+*Text gradients — palettes, angle, and individually editable color stops.*
+
 ![Cutline transition library and duration controls](docs/screenshots/transitions.png)
 
 *Transitions span the cut between two clips; duration is adjustable in the inspector.*
@@ -24,7 +28,7 @@ These are captures of the Windows editor with a synthetic sample project; no per
 - Split, duplicate, copy/paste at the playhead, delete, optional ripple delete, grouped undo/redo, and Escape to cancel a drag.
 - One canvas renderer shared by preview and export, with local video/image/audio import and independent players for duplicate source clips.
 - 12 adjustable, stackable effects; 12 incoming transitions; 12 color looks; brightness, contrast, saturation, and temperature.
-- 12 text presets, six font choices, outlines, shadows/glow, backgrounds, spacing, rotation, opacity, and alignment. Text and visual clips support independently tunable entrance/exit animation stacks: combine Drift, Zoom, Wipe, Fade, and other presets at once, then tune each layer's direction/angle, distance, zoom in or out, rotation, blur, fade, and easing. Name and save an entire stack for reuse. Saved recipes live on each device; applying one copies its settings into the project, including backups.
+- 14 text presets, six font choices, outlines, shadows/glow, backgrounds, spacing, rotation, opacity, and alignment. Customizable linear and radial text gradients support up to eight color stops, exact hex colors, stop positions, direction, center, radius, palettes, reversal, and keyframes. Text and visual clips support independently tunable entrance/exit animation stacks: combine Drift, Zoom, Wipe, Fade, and other presets at once, then tune each layer's direction/angle, distance, zoom in or out, rotation, blur, fade, and easing. Name and save an entire stack for reuse. Saved recipes live on each device; applying one copies its settings into the project, including backups.
 - Per-property keyframe diamonds for video transform/color/effects/audio and text appearance/effects, plus legacy motion keyframes. Keyframed preview and export share the same renderer.
 - Optional, free on-device OpenAI Whisper Tiny auto subtitles (model download requires confirmation), SRT import, manual captions, editable symbol stickers, real audio waveforms, gain, fade-in/out and track mute/hide.
 - Autosaved projects with retained project history, portable `.cutline` backups containing imported media, and legacy project migration. The desktop waits for a save before closing.
@@ -46,6 +50,8 @@ The Windows release is unsigned. It is not installed automatically and may trigg
 
 Node.js >=22.13.0 and npm are required.
 
+The repository includes a placeholder `.openai/hosting.json` for local builds. It is not connected to the published Cutline Site; set up your own Site if you deploy a fork.
+
 ```sh
 npm install
 npm run dev
@@ -61,6 +67,6 @@ npm run desktop:dist
 
 ## Verification for this release
 
-31 model/component checks and the rendering/export suite passed, including image fit and selection bounds, an editable transition duration, a smooth transparent-image crossfade, two-sided visual transitions before and after the cut, both imported-video source handles, embedded-audio crossfade, and matching preview/export renders. The rendering suite exercised every effect, look, transition and text preset, verified playable 720p MP4 and WebM outputs with audio, and decoded audio from a real exported MP4 for Whisper. Type checking passed. The Windows package and server-rendered shell are checked during release packaging.
+33 model/component checks and the rendering/export suite passed, including text gradient persistence, stop/color keyframes, linear and radial rendering, exact hex editing, image fit and selection bounds, an editable transition duration, a smooth transparent-image crossfade, two-sided visual transitions before and after the cut, both imported-video source handles, embedded-audio crossfade, and matching preview/export renders. The rendering suite exercised every effect, look, transition and text preset, verified playable 720p MP4 and WebM outputs with gradient text and audio, and decoded audio from a real exported MP4 for Whisper. Type checking passed. The Windows package and server-rendered shell are checked during release packaging.
 
-Interactive native screenshot/pointer QA could not be completed: the Windows capture helper returned `SetIsBorderRequired failed: No such interface supported (0x80004002)` and pointer actions lacked capture geometry. The timeline component tests simulate pointer events and verify exact clip state/position; they are not a substitute for broad human/device testing. 4K/60 fps and long-project performance are not certified.
+Isolated Electron screenshots and pointer selection were checked with synthetic media. Timeline component tests simulate pointer events and verify exact clip state/position; they are not a substitute for broad human/device testing. 4K/60 fps and long-project performance are not certified.

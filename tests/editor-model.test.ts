@@ -8,6 +8,7 @@ import {
   interpolatedTransform,
   makeClip,
   makeText,
+  normalizeGradientStops,
   migrateProject,
   newProject,
   parseSrt,
@@ -52,6 +53,40 @@ test("new projects start with an empty media library and timeline", () => {
 test("new still images fit inside the canvas while videos continue to fill it", () => {
   assert.equal(makeClip({ ...video, kind: "image", name: "Portrait.webp" }).fit, "contain");
   assert.equal(makeClip(video).fit, "cover");
+});
+test("text gradients keep editable stops in backups and migrate older solid text safely", () => {
+  const text = makeText(0, {
+    fillMode: "radial", gradientCenterX: 0.3, gradientCenterY: 0.8,
+    gradientRadius: 1.4,
+    gradientStops: [
+      { id: "a", position: 0, color: "#fff2bb" },
+      { id: "b", position: 0.35, color: "#e85d9c" },
+      { id: "c", position: 1, color: "#5a62db" },
+    ],
+  });
+  const project = newProject(); project.texts = [text];
+  const restored = migrateProject(JSON.parse(JSON.stringify(project)), []);
+  assert.deepEqual(restored.texts[0].gradientStops, text.gradientStops);
+  assert.equal(restored.texts[0].fillMode, "radial");
+  assert.equal(restored.texts[0].gradientRadius, 1.4);
+  const legacy = migrateProject({ ...project, texts: [{ ...text, fillMode: undefined, gradientStops: undefined }] }, []);
+  assert.equal(legacy.texts[0].fillMode, "solid");
+  assert.equal(legacy.texts[0].gradientStops.length, 2);
+  assert.deepEqual(normalizeGradientStops([{ color: "bad", position: 2 }]), legacy.texts[0].gradientStops);
+});
+test("text gradient angle and individual stop properties can be keyframed", () => {
+  let text = makeText(0, { fillMode: "linear", duration: 4 });
+  text = setPropertyKeyframe(text, "gradientAngle", 0, 0);
+  text = setPropertyKeyframe(text, "gradientAngle", 2, 180);
+  text = setPropertyKeyframe(text, "gradientStop:start:color", 0, "#ff0000");
+  text = setPropertyKeyframe(text, "gradientStop:start:color", 2, "#0000ff");
+  text = setPropertyKeyframe(text, "gradientStop:end:position", 0, 0.5);
+  text = setPropertyKeyframe(text, "gradientStop:end:position", 2, 1);
+  const middle = animatedItem(text, 1);
+  assert.equal(middle.gradientAngle, 90);
+  assert.equal(middle.gradientStops[0].color, "#800080");
+  assert.equal(middle.gradientStops[1].position, 0.75);
+  assert.equal(text.gradientStops[0].color, "#ffffff", "Keyframes must not mutate the authored fill");
 });
 test("old image imports adopt fit-inside once without undoing a chosen crop", () => {
   const image: Asset = { ...video, kind: "image", name: "Portrait.webp" };
