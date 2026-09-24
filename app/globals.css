@@ -1252,6 +1252,7 @@ summary::-webkit-details-marker {
 .subtitle-dialog { display: grid; gap: 10px; max-width: 550px; }
 .subtitle-dialog > p { margin: 0 0 4px; color: #aebccb; line-height: 1.55; font-size: 13px; }
 .subtitle-progress { display: flex; align-items: center; gap: 8px; padding: 12px; border: 1px solid #3b705d; border-radius: 8px; color: var(--mint); background: #193529; font-size: 13px; }
+.subtitle-error { padding: 12px; border: 1px solid #9b4c51; border-radius: 8px; color: #ffd9db; background: #482326; font-size: 13px; line-height: 1.45; }
 .field > input,
 .field > select {
   width: 100%;

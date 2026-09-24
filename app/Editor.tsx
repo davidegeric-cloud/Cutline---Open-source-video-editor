@@ -74,6 +74,7 @@ import {
 import { useProject } from "./editor/useProject";
 import { listProjects, type PersistedProject } from "./editorStorage";
 import { decodeClipAudio, wordsToCaptions, type WhisperChunk } from "./editor/whisper";
+import WhisperWorker from "./editor/whisper.worker?worker";
 import { textAnimationTiming } from "./editor/textAnimation";
 const NAV = [
   { name: "Media", icon: Film },
@@ -132,6 +133,7 @@ export default function Editor() {
   const [subtitleClipId, setSubtitleClipId] = useState("");
   const [subtitleModel, setSubtitleModel] = useState("Xenova/whisper-tiny");
   const [subtitleProgress, setSubtitleProgress] = useState<{ message: string; percent: number | null } | null>(null);
+  const [subtitleError, setSubtitleError] = useState("");
   const subtitleWorker = useRef<Worker | null>(null);
   const subtitleRun = useRef(0);
   const subtitleReject = useRef<((error: Error) => void) | null>(null);
@@ -173,6 +175,7 @@ export default function Editor() {
     if (!candidate) { notify("Add a video or audio clip to the timeline first."); return; }
     setSubtitleClipId(candidate.id);
     setSubtitleProgress(null);
+    setSubtitleError("");
     setDialog("subtitles");
   };
   const cancelSubtitles = () => {
@@ -182,6 +185,7 @@ export default function Editor() {
     subtitleWorker.current?.terminate();
     subtitleWorker.current = null;
     setSubtitleProgress(null);
+    setSubtitleError("");
     setDialog(null);
   };
   const createAutoSubtitles = async () => {
@@ -189,12 +193,13 @@ export default function Editor() {
     const asset = project.assets.find((a) => a.id === subtitleClip.assetId);
     if (!asset || asset.kind === "image") return;
     const run = ++subtitleRun.current;
+    setSubtitleError("");
     setSubtitleProgress({ message: "Reading audio from your clip…", percent: null });
     try {
       const audio = await decodeClipAudio(subtitleClip, asset);
       if (run !== subtitleRun.current) return;
       if (audio.length < 1600) throw new Error("This clip has no usable audio.");
-      const worker = new Worker(new URL("./editor/whisper.worker.ts", import.meta.url), { type: "module" });
+      const worker = new WhisperWorker();
       subtitleWorker.current = worker;
       const result = await new Promise<WhisperChunk[]>((resolve, reject) => {
         subtitleReject.current = reject;
@@ -209,7 +214,8 @@ export default function Editor() {
             else reject(new Error("Whisper detected no speech in this clip."));
           }
         };
-        worker.onerror = (event) => reject(new Error(event.message || "Whisper could not start."));
+        worker.onerror = (event) => reject(new Error(event.message || "Whisper could not start. Check your connection and try again."));
+        worker.onmessageerror = () => reject(new Error("Whisper returned unreadable data. Please try again."));
         worker.postMessage({ audio, model: subtitleModel }, [audio.buffer]);
       });
       if (run !== subtitleRun.current) return;
@@ -222,7 +228,11 @@ export default function Editor() {
       notify(`${captions.length} editable subtitles created locally.`);
       setDialog(null);
     } catch (error) {
-      if (run === subtitleRun.current) notify((error as Error).message);
+      if (run === subtitleRun.current) {
+        const message = (error as Error).message || "Auto subtitles failed. Please try again.";
+        setSubtitleError(message);
+        notify(message);
+      }
     } finally {
       if (run === subtitleRun.current) {
         subtitleWorker.current?.terminate();
@@ -1397,6 +1407,7 @@ export default function Editor() {
             </Field>
             <p className="field-note">First download is approximately 50–100 MB. Transcription time depends on your clip length and PC. The generated captions are regular text clips, so you can fix any misheard words and style them.</p>
             {subtitleProgress && <div className="subtitle-progress" role="status"><LoaderCircle size={17} className="spin" /> {subtitleProgress.message}{subtitleProgress.percent !== null && ` ${Math.round(subtitleProgress.percent)}%`}</div>}
+            {subtitleError && <div className="subtitle-error" role="alert">{subtitleError}</div>}
             <div className="dialog-actions">
               <button className="button secondary" onClick={cancelSubtitles}>{subtitleProgress ? "Cancel" : "Not now"}</button>
               <button className="button primary" disabled={!!subtitleProgress || !subtitleClip} onClick={() => void createAutoSubtitles()}><Download size={16} /> Download & transcribe</button>

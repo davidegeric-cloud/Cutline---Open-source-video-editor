@@ -1,4 +1,4 @@
-# Cutline 0.3.15
+# Cutline 0.3.16
 
 A free, device-local video editor for Windows and the web. No subscription, account in the PC app, or export watermark. 
 
@@ -30,7 +30,7 @@ These are captures of the Windows editor with a synthetic sample project; no per
 - 12 adjustable, stackable effects; 12 incoming transitions; 12 color looks; brightness, contrast, saturation, and temperature.
 - 14 text presets, six font choices, outlines, shadows/glow, backgrounds, spacing, rotation, opacity, and alignment. Customizable linear and radial text gradients support up to eight color stops, exact hex colors, stop positions, direction, center, radius, palettes, reversal, and keyframes. Text and visual clips support independently tunable entrance/exit animation stacks: combine Drift, Zoom, Wipe, Fade, and other presets at once, then tune each layer's direction/angle, distance, zoom in or out, rotation, blur, fade, and easing. Name and save an entire stack for reuse. Saved recipes live on each device; applying one copies its settings into the project, including backups.
 - Per-property keyframe diamonds for video transform/color/effects/audio and text appearance/effects, plus legacy motion keyframes. Keyframed preview and export share the same renderer.
-- Optional, free on-device OpenAI Whisper Tiny auto subtitles (model download requires confirmation), SRT import, manual captions, editable symbol stickers, zoom-aware audio waveforms with RMS/peak detail, gain, fade-in/out and track mute/hide. Older saved audio waveforms are refreshed from their embedded media.
+- Optional, free on-device OpenAI Whisper Tiny auto subtitles (model download requires confirmation), SRT import, manual captions, editable symbol stickers, zoom-aware audio waveforms with RMS/peak detail, gain, fade-in/out and track mute/hide. Older saved audio waveforms are refreshed from their embedded media. Subtitle errors remain visible in the dialog so they can be retried.
 - Autosaved projects with retained project history, portable `.cutline` backups containing imported media, and legacy project migration. The desktop waits for a save before closing.
 - Browser-supported MP4/H.264 or WebM/VP9/VP8 export, 720p/1080p/2160p, 30/60 fps, native save dialogs, and immediate cancellation.
 
@@ -67,6 +67,6 @@ npm run desktop:dist
 
 ## Verification for this release
 
-33 model/component checks and the rendering/export suite passed, including high-resolution RMS/peak waveform analysis, source-time zoom and trim mapping, automatic upgrades of older audio projects, audio import visibility, text gradients, image fit, editable two-sided transitions, embedded-audio crossfade, and matching preview/export renders. The rendering suite exercised every effect, look, transition and text preset, verified playable 720p MP4 and WebM outputs with audio, and decoded audio from a real exported MP4 for Whisper. Type checking passed. The Windows package and server-rendered shell are checked during release packaging.
+33 model/component checks and the rendering/export suite passed, including high-resolution RMS/peak waveform analysis, source-time zoom and trim mapping, automatic upgrades of older audio projects, audio import visibility, text gradients, image fit, editable two-sided transitions, embedded-audio crossfade, and matching preview/export renders. The rendering suite exercised every effect, look, transition and text preset, verified playable 720p MP4 and WebM outputs with audio, and decoded audio from a real exported MP4 for Whisper. A production browser test downloaded Whisper Tiny, transcribed a spoken WAV, and inserted four editable captions. Type checking passed. The Windows package and server-rendered shell are checked during release packaging.
 
 Isolated Electron screenshots and pointer selection were checked with synthetic media. Timeline component tests simulate pointer events and verify exact clip state/position; they are not a substitute for broad human/device testing. 4K/60 fps and long-project performance are not certified.
