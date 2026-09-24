@@ -23,7 +23,7 @@ app.whenReady().then(async () => {
         if (event.data.type === "error") { worker.terminate(); reject(new Error(event.data.message)); }
       };
       worker.onerror = (event) => { worker.terminate(); reject(new Error(event.message || "Worker failed")); };
-      worker.postMessage({ audio: new Float32Array(16000), model: "Xenova/whisper-tiny.en" });
+      worker.postMessage({ audio: new Float32Array(16000), model: "Xenova/whisper-tiny.en", runtimeUrl: new URL("./whisper-runtime/", document.baseURI).href });
     })`);
     process.stdout.write(`WHISPER_SMOKE_READY ${JSON.stringify(result)}\n`);
     clearTimeout(timeout);

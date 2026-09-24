@@ -216,7 +216,7 @@ export default function Editor() {
         };
         worker.onerror = (event) => reject(new Error(event.message || "Whisper could not start. Check your connection and try again."));
         worker.onmessageerror = () => reject(new Error("Whisper returned unreadable data. Please try again."));
-        worker.postMessage({ audio, model: subtitleModel }, [audio.buffer]);
+        worker.postMessage({ audio, model: subtitleModel, runtimeUrl: new URL("./whisper-runtime/", document.baseURI).href }, [audio.buffer]);
       });
       if (run !== subtitleRun.current) return;
       const track = Math.max(project.layerCount, ...[...project.clips, ...project.texts].map((item) => item.track + 1));

@@ -1,15 +1,27 @@
 import { clamp, clipDuration, makeText, type Asset, type Clip, type TextClip } from "./model";
+import { loadMediaAsset } from "../editorStorage";
 
 export type WhisperChunk = { text: string; timestamp: [number, number | null] };
 
 /** Decode the imported local media and resample exactly the selected edit to Whisper's 16 kHz mono input. */
 export async function decodeClipAudio(clip: Clip, asset: Asset): Promise<Float32Array> {
-  if (!asset.url) throw new Error("The source file is missing. Relink or re-import this media.");
-  const response = await fetch(asset.url);
-  if (!response.ok) throw new Error("Could not read the selected media file.");
+  const savedMedia = await loadMediaAsset(asset.id);
+  let source: ArrayBuffer;
+  if (savedMedia?.blob) {
+    source = await savedMedia.blob.arrayBuffer();
+  } else {
+    if (!asset.url) throw new Error("The source file is missing. Relink or re-import this media.");
+    try {
+      const response = await fetch(asset.url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      source = await response.arrayBuffer();
+    } catch {
+      throw new Error("Could not read this clip's source file. Relink or re-import the media, then try subtitles again.");
+    }
+  }
   const context = new AudioContext();
   try {
-    const decoded = await context.decodeAudioData(await response.arrayBuffer());
+    const decoded = await context.decodeAudioData(source);
     const duration = Math.min(clipDuration(clip), 60 * 60);
     const output = new Float32Array(Math.ceil(duration * 16000));
     const channels = Array.from({ length: decoded.numberOfChannels }, (_, index) => decoded.getChannelData(index));

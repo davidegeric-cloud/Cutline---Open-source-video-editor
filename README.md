@@ -1,4 +1,4 @@
-# Cutline 0.3.16
+# Cutline 0.3.17
 
 A free, device-local video editor for Windows and the web. No subscription, account in the PC app, or export watermark. 
 
@@ -46,6 +46,8 @@ Web projects and PC projects use separate local storage. Transfer edits using a 
 
 The Windows release is unsigned. It is not installed automatically and may trigger a Windows publisher warning.
 
+Whisper's ONNX runtime is included in the web and Windows builds, so transcription no longer needs the jsDelivr CDN. The speech model itself is downloaded from Hugging Face on first use and then cached. Subtitle decoding reads imported media directly from the project's local storage; if a source is unavailable, the editor now gives a relink/re-import instruction instead of a generic fetch error.
+
 ## Development
 
 Node.js >=22.13.0 and npm are required.
@@ -69,4 +71,4 @@ npm run desktop:dist
 
 33 model/component checks and the rendering/export suite passed, including high-resolution RMS/peak waveform analysis, source-time zoom and trim mapping, automatic upgrades of older audio projects, audio import visibility, text gradients, image fit, editable two-sided transitions, embedded-audio crossfade, and matching preview/export renders. The rendering suite exercised every effect, look, transition and text preset, verified playable 720p MP4 and WebM outputs with audio, and decoded audio from a real exported MP4 for Whisper. A production browser test downloaded Whisper Tiny, transcribed a spoken WAV, and inserted four editable captions. Type checking passed. The Windows package and server-rendered shell are checked during release packaging.
 
-Isolated Electron screenshots and pointer selection were checked with synthetic media. Timeline component tests simulate pointer events and verify exact clip state/position; they are not a substitute for broad human/device testing. 4K/60 fps and long-project performance are not certified.
+An isolated Windows production run completed Whisper transcription with CDN requests deliberately blocked and a fresh model download. Isolated Electron screenshots and pointer selection were checked with synthetic media. Timeline component tests simulate pointer events and verify exact clip state/position; they are not a substitute for broad human/device testing. 4K/60 fps and long-project performance are not certified.

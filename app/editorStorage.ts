@@ -85,6 +85,18 @@ export async function saveMediaAsset(asset: PersistedMedia) {
   database.close();
 }
 
+export async function loadMediaAsset(assetId: string): Promise<PersistedMedia | undefined> {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(MEDIA_STORE, "readonly");
+    const request = transaction.objectStore(MEDIA_STORE).get(assetId);
+    await waitForTransaction(transaction);
+    return request.result as PersistedMedia | undefined;
+  } finally {
+    database.close();
+  }
+}
+
 export async function deleteMediaAsset(assetId: string) {
   const database = await openDatabase();
   const transaction = database.transaction(MEDIA_STORE, "readwrite");

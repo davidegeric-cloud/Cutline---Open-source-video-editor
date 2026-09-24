@@ -24,6 +24,7 @@ import {
   loadProject,
   saveProject,
   saveMediaAsset,
+  deleteMediaAsset,
   listProjects,
 } from "../app/editorStorage";
 import { persistable } from "../app/editor/useProject";
@@ -833,15 +834,21 @@ export async function runEngineTests() {
       URL.revokeObjectURL(asset.url!);
     }
   });
-  await check("Whisper input decodes and resamples audio from an exported MP4 clip", async () => {
+  await check("Whisper decodes stored media even when its preview URL is stale", async () => {
     assert(output, "No encoded MP4 source");
     const asset = await inspectFile(new File([output!], "subtitle-source.mp4", { type: output!.type }));
     try {
-      const clip = { ...makeClip(asset), sourceStart: 0.2, sourceEnd: 0.7 };
+      const clip = { ...makeClip(asset), sourceStart: 0, sourceEnd: 2 };
       const samples = await decodeClipAudio(clip, asset);
-      assert(samples.length >= 7900 && samples.length <= 8100, `Expected 0.5s of 16 kHz input, got ${samples.length}`);
+      assert(samples.length >= 31900 && samples.length <= 32100, `Expected 2s of 16 kHz input, got ${samples.length}`);
       assert(samples.some((sample) => Math.abs(sample) > 0.001), "Whisper input is silent despite audible source");
+      const { url: _previewUrl, ...stored } = asset;
+      void _previewUrl;
+      await saveMediaAsset({ ...stored, kind: "video", blob: output! });
+      const restored = await decodeClipAudio(clip, { ...asset, url: "blob:stale-preview-url" });
+      assert(restored.length === samples.length && restored.some((sample) => Math.abs(sample) > 0.001), "Stored media was not decoded after the preview URL expired");
     } finally {
+      await deleteMediaAsset(asset.id);
       URL.revokeObjectURL(asset.url!);
     }
   });
