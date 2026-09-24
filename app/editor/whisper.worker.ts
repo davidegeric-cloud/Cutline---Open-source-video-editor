@@ -14,6 +14,9 @@ self.onmessage = async (event: MessageEvent<Request>) => {
     if (!transcriber || currentModel !== model) {
       self.postMessage({ type: "status", message: "Downloading Whisper model…" });
       transcriber = await pipeline("automatic-speech-recognition", model, {
+        // Keep Large practical for CPU inference by selecting the repository's
+        // q8 ONNX weights (roughly 1.6 GB across encoder + merged decoder).
+        ...(model === "Xenova/whisper-large-v3" ? { dtype: "q8" } : {}),
         progress_callback: (progress) => {
           if (progress.status === "progress") self.postMessage({ type: "progress", file: progress.file, progress: progress.progress });
           else if (progress.status === "ready") self.postMessage({ type: "status", message: "Whisper is ready." });

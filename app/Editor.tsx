@@ -131,7 +131,7 @@ export default function Editor() {
     ),
     [archives, setArchives] = useState<PersistedProject[]>([]);
   const [subtitleClipId, setSubtitleClipId] = useState("");
-  const [subtitleModel, setSubtitleModel] = useState("Xenova/whisper-tiny");
+  const [subtitleModel, setSubtitleModel] = useState("Xenova/whisper-large-v3");
   const [subtitleProgress, setSubtitleProgress] = useState<{ message: string; percent: number | null } | null>(null);
   const [subtitleError, setSubtitleError] = useState("");
   const subtitleWorker = useRef<Worker | null>(null);
@@ -1393,7 +1393,7 @@ export default function Editor() {
       {dialog === "subtitles" && (
         <Dialog title="Auto subtitles" subtitle="Free, private speech-to-text with OpenAI Whisper" close={cancelSubtitles}>
           <div className="subtitle-dialog">
-            <p>Cutline downloads a small Whisper model when you start, then transcribes your selected clip on this PC. Audio is not sent to a transcription service. The model is cached for later use.</p>
+            <p>Whisper runs on this PC. Audio is not sent to a transcription service, and the selected model is cached locally after its first download.</p>
             <Field label="Timeline clip">
               <select value={subtitleClip?.id ?? ""} onChange={(e) => setSubtitleClipId(e.target.value)} disabled={!!subtitleProgress}>
                 {project.clips.filter((c) => project.assets.some((a) => a.id === c.assetId && a.kind !== "image")).map((c) => <option value={c.id} key={c.id}>{c.label} · {clock(c.start)}–{clock(endOf(c))}</option>)}
@@ -1401,11 +1401,12 @@ export default function Editor() {
             </Field>
             <Field label="Whisper model">
               <select value={subtitleModel} onChange={(e) => setSubtitleModel(e.target.value)} disabled={!!subtitleProgress}>
+                <option value="Xenova/whisper-large-v3">Multilingual · Large v3 (best accuracy, ~1.6 GB)</option>
                 <option value="Xenova/whisper-tiny">Multilingual · Tiny</option>
                 <option value="Xenova/whisper-tiny.en">English · Tiny</option>
               </select>
             </Field>
-            <p className="field-note">First download is approximately 50–100 MB. Transcription time depends on your clip length and PC. The generated captions are regular text clips, so you can fix any misheard words and style them.</p>
+            <p className="field-note">{subtitleModel === "Xenova/whisper-large-v3" ? "Large v3 downloads about 1.6 GB once and needs substantially more memory and processing time than Tiny." : "Tiny downloads approximately 50–100 MB and runs faster on modest PCs."} Transcription time depends on your clip length and PC. The generated captions are regular text clips, so you can fix any misheard words and style them.</p>
             {subtitleProgress && <div className="subtitle-progress" role="status"><LoaderCircle size={17} className="spin" /> {subtitleProgress.message}{subtitleProgress.percent !== null && ` ${Math.round(subtitleProgress.percent)}%`}</div>}
             {subtitleError && <div className="subtitle-error" role="alert">{subtitleError}</div>}
             <div className="dialog-actions">

@@ -1,4 +1,4 @@
-# Cutline 0.3.17
+# Cutline 0.3.18
 
 A free, device-local video editor for Windows and the web. No subscription, account in the PC app, or export watermark. 
 
@@ -46,7 +46,7 @@ Web projects and PC projects use separate local storage. Transfer edits using a 
 
 The Windows release is unsigned. It is not installed automatically and may trigger a Windows publisher warning.
 
-Whisper's ONNX runtime is included in the web and Windows builds, so transcription no longer needs the jsDelivr CDN. The speech model itself is downloaded from Hugging Face on first use and then cached. Subtitle decoding reads imported media directly from the project's local storage; if a source is unavailable, the editor now gives a relink/re-import instruction instead of a generic fetch error.
+Whisper Large v3 is now the default auto-subtitle model, with Tiny choices for faster transcription and smaller downloads. Large v3 downloads quantized weights of about 1.6 GB on first use. Whisper's ONNX runtime is included in the web and Windows builds, so transcription no longer needs the jsDelivr CDN. Models are downloaded from Hugging Face and cached locally. Subtitle decoding reads imported media directly from project storage; if a source is unavailable, the editor gives a relink/re-import instruction.
 
 ## Development
 
