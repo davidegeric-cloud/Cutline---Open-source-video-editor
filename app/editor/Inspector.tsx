@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   SlidersHorizontal,
   RotateCcw,
@@ -17,8 +17,15 @@ import {
   Play,
   Save,
   Trash2,
+  RefreshCw,
 } from "lucide-react";
-import { ANIMATIONS, FONTS, TRANSITIONS } from "./presets";
+import {
+  ANIMATIONS,
+  BUNDLED_FONTS,
+  COMMON_SYSTEM_FONTS,
+  FONTS,
+  TRANSITIONS,
+} from "./presets";
 import { animationLayers, defaultAnimationSettings, textAnimationTiming } from "./textAnimation";
 import {
   createCustomAnimationPreset,
@@ -62,6 +69,7 @@ export function Inspector({
   focusEffects,
   previewAnimation,
 }: Props) {
+  const isDesktop = typeof window !== "undefined" && Boolean(window.cutlineDesktop);
   const [tab, setTab] = useState("Basic");
   const [animationPhase, setAnimationPhase] = useState<"Entrance" | "Exit">(
     "Entrance",
@@ -71,6 +79,32 @@ export function Inspector({
   const [newPresetName, setNewPresetName] = useState("");
   const [deletePresetId, setDeletePresetId] = useState<string | null>(null);
   const [presetError, setPresetError] = useState("");
+  const [installedFonts, setInstalledFonts] = useState<string[]>([]);
+  const [fontsLoading, setFontsLoading] = useState(isDesktop);
+  const refreshInstalledFonts = useCallback(async (refresh = false) => {
+    const listFonts = window.cutlineDesktop?.listInstalledFonts;
+    if (!listFonts) return;
+    setFontsLoading(true);
+    try {
+      setInstalledFonts(await listFonts(refresh));
+    } catch {
+      // Keep the bundled and common font choices available if system scanning fails.
+    } finally {
+      setFontsLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    if (!isDesktop) return;
+    let active = true;
+    void window.cutlineDesktop?.listInstalledFonts().then((fonts) => {
+      if (active) setInstalledFonts(fonts);
+    }).catch(() => {}).finally(() => {
+      if (active) setFontsLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [isDesktop]);
   const sourceClip =
     selection?.kind === "clip"
       ? project.clips.find((c) => c.id === selection.id)
@@ -81,6 +115,14 @@ export function Inspector({
       : undefined;
   const clip = sourceClip ? animatedItem(sourceClip, time) : undefined;
   const text = sourceText ? animatedItem(sourceText, time) : undefined;
+  const commonFontNames = new Set(FONTS.map((font) => font.toLocaleLowerCase()));
+  const extraInstalledFonts = installedFonts.filter(
+    (font) => !commonFontNames.has(font.toLocaleLowerCase()),
+  );
+  const selectedFontIsListed = [
+    ...FONTS,
+    ...installedFonts,
+  ].some((font) => font.toLocaleLowerCase() === text?.fontFamily.toLocaleLowerCase());
   const effectsTab = text ? "Effects" : "Basic";
   useEffect(() => {
     if (!focusEffects) return;
@@ -375,18 +417,70 @@ export function Inspector({
                     rows={3}
                     onChange={(e) => updateText({ text: e.target.value })}
                   />
-                  <Field label="Font" keyframe={tk("fontFamily", text.fontFamily)}>
+                  <div className="font-picker-field field">
+                    <span className="field-label">
+                      Font {tk("fontFamily", text.fontFamily)}
+                      {isDesktop && (
+                        <button
+                          className="font-refresh-button"
+                          type="button"
+                          title="Refresh fonts installed on this PC"
+                          aria-label="Refresh installed fonts"
+                          disabled={fontsLoading}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => void refreshInstalledFonts(true)}
+                        >
+                          <RefreshCw size={12} className={fontsLoading ? "spinning" : ""} />
+                        </button>
+                      )}
+                    </span>
                     <select
+                      aria-label="Font"
                       value={text.fontFamily}
+                      onFocus={() => {
+                        if (isDesktop) void refreshInstalledFonts(true);
+                      }}
                       onChange={(e) =>
                         updateText({ fontFamily: e.target.value })
                       }
                     >
-                      {FONTS.map((f) => (
-                        <option key={f}>{f}</option>
-                      ))}
+                      {!selectedFontIsListed && (
+                        <optgroup label="Saved in this project">
+                          <option value={text.fontFamily}>{text.fontFamily}</option>
+                        </optgroup>
+                      )}
+                      <optgroup label="Included with Cutline · works offline">
+                        {BUNDLED_FONTS.map((font) => (
+                          <option key={font} value={font} style={{ fontFamily: font }}>
+                            {font.replace(/ Variable$/, "")}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Popular system fonts">
+                        {COMMON_SYSTEM_FONTS.map((font) => (
+                          <option key={font} value={font} style={{ fontFamily: font }}>
+                            {font}
+                          </option>
+                        ))}
+                      </optgroup>
+                      {isDesktop && (
+                        <optgroup label={`Installed on this PC (${installedFonts.length})`}>
+                          {extraInstalledFonts.map((font) => (
+                            <option key={font} value={font} style={{ fontFamily: font }}>
+                              {font}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
-                  </Field>
+                    <small className="font-picker-note">
+                      {isDesktop
+                        ? fontsLoading
+                          ? "Scanning Windows fonts…"
+                          : `${installedFonts.length} fonts found on this PC. New installs appear after refresh.`
+                        : "The desktop app also lists fonts installed on your PC."}
+                    </small>
+                  </div>
                   <div className="field-grid">
                     <NumberField
                       label="Size"

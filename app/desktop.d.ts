@@ -6,6 +6,7 @@ declare global {
       isDesktop: true;
       platform: string;
       version: () => Promise<string>;
+      listInstalledFonts: (refresh?: boolean) => Promise<string[]>;
       minimize: () => void;
       maximize: () => void;
       toggleFullscreen: () => void;

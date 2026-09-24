@@ -10,6 +10,7 @@ const {
 const { writeFile } = require("node:fs/promises");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
+const { listInstalledFonts } = require("./fonts.cjs");
 
 const APP_ID = "com.cutline.editor";
 let mainWindow = null;
@@ -204,6 +205,11 @@ ipcMain.handle("window:is-maximized", (event) => {
 ipcMain.handle("app:version", (event) => {
   requireTrustedSender(event);
   return app.getVersion();
+});
+
+ipcMain.handle("fonts:list", (event, refresh = false) => {
+  requireTrustedSender(event);
+  return listInstalledFonts(refresh === true);
 });
 
 ipcMain.handle("project:confirm-new", async (event) => {

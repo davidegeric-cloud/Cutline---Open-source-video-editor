@@ -153,13 +153,47 @@ export const ANIMATIONS: AnimationName[] = [
   "Drift",
   "Custom",
 ];
-export const FONTS = [
+export const BUNDLED_FONTS = [
   "Manrope Variable",
   "Source Code Pro Variable",
+  "Inter Variable",
+  "Roboto Variable",
+  "Montserrat Variable",
+  "Open Sans Variable",
+  "Oswald Variable",
+  "Playfair Display Variable",
+  "DM Sans Variable",
+  "Space Grotesk Variable",
+  "Nunito Sans Variable",
+];
+export const COMMON_SYSTEM_FONTS = [
+  "Aptos",
   "Arial",
+  "Arial Black",
+  "Bahnschrift",
+  "Calibri",
+  "Cambria",
+  "Candara",
+  "Century Gothic",
+  "Comic Sans MS",
+  "Consolas",
+  "Corbel",
+  "Courier New",
+  "Franklin Gothic Medium",
+  "Garamond",
   "Georgia",
   "Impact",
+  "Lucida Console",
+  "Palatino Linotype",
+  "Segoe UI",
+  "Tahoma",
+  "Times New Roman",
   "Trebuchet MS",
+  "Verdana",
+];
+export const FONTS = [
+  ...BUNDLED_FONTS,
+  ...COMMON_SYSTEM_FONTS,
 ];
 export const TEXT_PRESETS: {
   name: string;

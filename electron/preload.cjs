@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld("cutlineDesktop", {
   isDesktop: true,
   platform: process.platform,
   version: () => ipcRenderer.invoke("app:version"),
+  listInstalledFonts: (refresh = false) =>
+    ipcRenderer.invoke("fonts:list", Boolean(refresh)),
   minimize: () => ipcRenderer.send("window:minimize"),
   maximize: () => ipcRenderer.send("window:maximize"),
   toggleFullscreen: () => ipcRenderer.send("window:fullscreen"),
