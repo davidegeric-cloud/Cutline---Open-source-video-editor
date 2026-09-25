@@ -761,7 +761,7 @@ export function Inspector({
                 {animationPhase === "Entrance" && (
                   <Section title="Entrance">
                     <div className="choice-grid">
-                      {ANIMATIONS.map((a) => (
+                      {ANIMATIONS.filter((a) => text || a !== "Letter Pop In").map((a) => (
                         <button
                           key={a}
                           aria-label={"Entrance " + a}
@@ -787,15 +787,15 @@ export function Inspector({
                 {animationPhase === "Exit" && (
                   <Section title="Exit">
                     <div className="choice-grid">
-                      {ANIMATIONS.map((a) => (
+                      {ANIMATIONS.filter((a) => text || a !== "Letter Pop In").map((a) => (
                         <button
                           key={a}
-                          aria-label={"Exit " + a}
+                          aria-label={"Exit " + (a === "Letter Pop In" ? "Letter Pop Out" : a)}
                           aria-pressed={a === "None" ? phaseStack.length === 0 : phaseStack.some((layer) => layer.name === a)}
                           className={(a === "None" ? phaseStack.length === 0 : phaseStack.some((layer) => layer.name === a)) ? "active" : ""}
                           onClick={() => chooseAnimation(a)}
                         >
-                          {a === "Typewriter" ? "Erase" : a}
+                          {a === "Typewriter" ? "Erase" : animationPhase === "Exit" && a === "Letter Pop In" ? "Letter Pop Out" : a}
                         </button>
                       ))}
                     </div>
@@ -1391,7 +1391,7 @@ function AnimationTuner({ name, options, onChange }: {
     </>}
     <Range label="Rotation" value={options.rotation ?? 0} min={-360} max={360} suffix="°" onChange={(value) => onChange({ rotation: value })} />
     <Range label="Blur" value={(options.blur ?? 0) * 100} min={0} max={10} step={0.1} suffix="%" onChange={(value) => onChange({ blur: value / 100 })} />
-    {!(["Typewriter", "Wipe left", "Wipe right", "Wipe up", "Wipe down"].includes(name)) &&
+    {!(["Typewriter", "Letter Pop In", "Wipe left", "Wipe right", "Wipe up", "Wipe down"].includes(name)) &&
       <Toggle label="Fade in / disappear" value={options.fade !== false} onChange={(value) => onChange({ fade: value })} />}
     <Field label="Easing">
       <select value={options.easing ?? "ease-out"} onChange={(event) => onChange({ easing: event.target.value as TextAnimationOptions["easing"] })}>

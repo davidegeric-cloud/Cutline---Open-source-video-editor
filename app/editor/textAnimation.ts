@@ -1,6 +1,9 @@
 import { clamp, clipDuration, type AnimationLayer, type AnimationName, type Clip, type ComboAnimation, type TextAnimationOptions, type TextClip } from "./model";
 type AnimationTarget = Clip | TextClip;
 const durationOf = (item: AnimationTarget) => "sourceEnd" in item ? clipDuration(item) : item.duration;
+export function letterPopProgress(progress: number, index: number, count: number) {
+  return clamp((clamp(progress, 0, 1) * (count + 1) - index) / 2, 0, 1);
+}
 
 export type TextMotion = {
   x: number;
@@ -11,6 +14,7 @@ export type TextMotion = {
   opacity: number;
   blur: number;
   characters: number;
+  letterPop: number;
   reveals: { direction: string; amount: number }[];
 };
 export function animationLayers(t: AnimationTarget, phase: "Entrance" | "Exit"): AnimationLayer[] {
@@ -37,7 +41,7 @@ export function defaultAnimationSettings(name: AnimationName, phase: "Entrance" 
     zoomAmount: name === "Zoom" ? (exiting ? 0.9 : 0.7) : name === "Shrink" ? (exiting ? 0.85 : 0.9) : name === "Pop" ? 0.55 : name === "Elastic" ? 0.8 : 0,
     rotation: name === "Spin" ? (exiting ? 160 : -160) : 0,
     blur: name === "Blur" ? 0.018 : 0,
-    fade: name !== "Typewriter" && !name.startsWith("Wipe"),
+    fade: name !== "Typewriter" && name !== "Letter Pop In" && !name.startsWith("Wipe"),
     easing: "ease-out",
   };
 }
@@ -91,6 +95,7 @@ function pose(
     opacity: 1,
     blur: 0,
     characters: 1,
+    letterPop: 1,
     reveals: [],
   };
   if (name === "None") return m;
@@ -149,6 +154,10 @@ function pose(
       m.characters = options.easing ? ease : p;
       m.opacity = 1;
       break;
+    case "Letter Pop In":
+      m.letterPop = ease;
+      m.opacity = 1;
+      break;
     case "Wipe left":
     case "Wipe right":
     case "Wipe up":
@@ -196,6 +205,7 @@ export function textMotion(t: AnimationTarget, time: number, includeItemOpacity 
     m.opacity *= part.opacity;
     m.blur += part.blur;
     m.characters = Math.min(m.characters, part.characters);
+    m.letterPop = Math.min(m.letterPop, part.letterPop);
     m.reveals.push(...part.reveals);
   }
   const combo = comboMotion(t, time);

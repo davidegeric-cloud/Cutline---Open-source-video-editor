@@ -13,7 +13,7 @@ import {
   type TextClip,
 } from "./model";
 import { FILTERS } from "./presets";
-import { textMotion } from "./textAnimation";
+import { letterPopProgress, textMotion } from "./textAnimation";
 
 export type MediaSources = Map<string, HTMLVideoElement | HTMLImageElement>;
 export type Bounds = {
@@ -728,10 +728,42 @@ export class Renderer {
     ctx.shadowColor = t.shadowColor;
     ctx.shadowBlur = t.shadowBlur * unit;
     ctx.shadowOffsetX = ctx.shadowOffsetY = t.shadowOffset * unit;
+    const letterAnimation = motion.letterPop < 1;
+    const animatedLetters = lines.map((line) => Array.from(line));
+    const letterCount = animatedLetters.reduce((total, line) => total + line.length, 0);
+    let letterIndex = 0;
     lines.forEach((line, i) => {
       const ly = (i - (fullLines.length - 1) / 2) * size * t.lineHeight;
-      if (t.strokeWidth) ctx.strokeText(line, 0, ly);
-      ctx.fillText(line, 0, ly);
+      if (!letterAnimation || letterCount === 0) {
+        if (t.strokeWidth) ctx.strokeText(line, 0, ly);
+        ctx.fillText(line, 0, ly);
+        return;
+      }
+      const glyphs = animatedLetters[i];
+      const spacing = t.letterSpacing * unit;
+      ctx.letterSpacing = "0px";
+      const widths = glyphs.map((glyph) => ctx.measureText(glyph).width);
+      const lineWidth = widths.reduce((total, width) => total + width, 0) + spacing * Math.max(0, glyphs.length - 1);
+      let cursor = t.align === "center" ? -lineWidth / 2 : t.align === "right" ? -lineWidth : 0;
+      glyphs.forEach((glyph, index) => {
+        const width = widths[index];
+        const letterProgress = letterPopProgress(motion.letterPop, letterIndex++, letterCount);
+        if (letterProgress > 0) {
+          const eased = 1 - (1 - letterProgress) ** 3;
+          const scale = 0.14 + 0.86 * eased + Math.sin(letterProgress * Math.PI) * 0.14;
+          const centerX = cursor + width / 2;
+          ctx.save();
+          ctx.globalAlpha = alpha * eased;
+          ctx.textAlign = "left";
+          ctx.translate(centerX, ly);
+          ctx.scale(scale, scale);
+          ctx.translate(-centerX, -ly);
+          if (t.strokeWidth) ctx.strokeText(glyph, cursor, ly);
+          ctx.fillText(glyph, cursor, ly);
+          ctx.restore();
+        }
+        cursor += width + spacing;
+      });
     });
     ctx.restore();
     const centerOffset = left + tw / 2;

@@ -48,6 +48,7 @@ export type AnimationName =
   | "Wipe up"
   | "Wipe down"
   | "Typewriter"
+  | "Letter Pop In"
   | "Drift"
   | "Custom";
 export const COMBO_ANIMATIONS = [

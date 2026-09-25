@@ -156,6 +156,7 @@ export const ANIMATIONS: AnimationName[] = [
   "Wipe up",
   "Wipe down",
   "Typewriter",
+  "Letter Pop In",
   "Drift",
   "Custom",
 ];

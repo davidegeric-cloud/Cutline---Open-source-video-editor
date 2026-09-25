@@ -33,7 +33,7 @@ import {
 } from "../app/editor/model";
 import { historyReducer } from "../app/editor/useProject";
 import { ANIMATIONS, TEXT_PRESETS } from "../app/editor/presets";
-import { comboMotion, textAnimationTiming, textMotion } from "../app/editor/textAnimation";
+import { comboMotion, letterPopProgress, textAnimationTiming, textMotion } from "../app/editor/textAnimation";
 import { createCustomAnimationPreset, parseCustomAnimationPresets } from "../app/editor/customAnimationPresets";
 import { sampleProject } from "./fixtures";
 import { wordsToCaptions } from "../app/editor/whisper";
@@ -184,6 +184,13 @@ test("Combo animations loop through clips and stay editable across project backu
     { name: "Not a loop", speed: 1, amount: 50 },
   ]), [{ name: "Pulse", speed: 4, amount: 0 }]);
 });
+test("Letter Pop In staggers each character and completes the whole phrase", () => {
+  const progress = [0, 1, 2, 3].map((index) => letterPopProgress(0.35, index, 4));
+  assert.ok(progress[0] > progress[1] && progress[1] > progress[2]);
+  assert.equal(progress[3], 0);
+  assert.deepEqual([0, 1, 2, 3].map((index) => letterPopProgress(1, index, 4)), [1, 1, 1, 1]);
+});
+
 test("entrance and exit presets have independent bounded timelines", () => {
   for (const name of ANIMATIONS.filter((n) => n !== "None")) {
     const t = makeText(2, {
